@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "scope": "wpww-local",
+  "control": {
+    "defaultLocked": false,
+    "defaultSelected": true,
+    "requireExplicitRun": true,
+    "allowRuntimeSwitching": true,
+    "allowModuleExclusion": true,
+    "allowAlternativeSelection": true,
+    "maxConcurrentExperiments": 1
+  },
+  "modules": {
+    "red": {
+      "selectionMode": "multi",
+      "alternatives": [
+        "evolution-lab",
+        "fuzzer-lab",
+        "stealth-lab",
+        "credential-pattern-lab",
+        "scenario-runner"
+      ]
+    },
+    "blue": {
+      "selectionMode": "multi",
+      "alternatives": [
+        "security-radar",
+        "adaptive-shield",
+        "defender-analyst",
+        "rate-shaper",
+        "entropy-guard",
+        "quarantine",
+        "honeypot"
+      ]
+    },
+    "observability": {
+      "selectionMode": "multi",
+      "alternatives": [
+        "otel",
+        "prometheus",
+        "grafana",
+        "loki",
+        "jaeger"
+      ]
+    },
+    "testing": {
+      "selectionMode": "multi",
+      "alternatives": [
+        "zap",
+        "semgrep",
+        "trivy",
+        "gitleaks",
+        "playwright",
+        "pytest"
+      ]
+    }
+  },
+  "moduleState": {}
+}
