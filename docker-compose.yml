@@ -2,11 +2,15 @@ services:
   wpww-warroom:
     build: .
     ports:
-      - "8080:8080"
+      - "${WPWW_PORT:-8080}:8080"
     environment:
       PORT: "8080"
       RADAR_URL: "${RADAR_URL:-http://host.docker.internal:5080}"
       SIMULATE_PATH: "${SIMULATE_PATH:-/api/v1/internal/legacy-db-dump}"
+      WPWW_ENABLE_SIMULATOR: "${WPWW_ENABLE_SIMULATOR:-true}"
+      WPWW_ENABLE_TELEMETRY: "${WPWW_ENABLE_TELEMETRY:-false}"
+      WPWW_ENABLE_CI: "${WPWW_ENABLE_CI:-false}"
+      WPWW_ENABLE_AUDIO: "${WPWW_ENABLE_AUDIO:-true}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 10s
@@ -22,8 +26,8 @@ services:
     environment:
       WPWW_URL: "http://wpww-warroom:8080/healthz"
       RADAR_URL: "${RADAR_URL:-http://host.docker.internal:5080/health}"
-      SNIFFER_INTERVAL: "10"
-      SNIFFER_TIMEOUT: "2"
+      SNIFFER_INTERVAL: "${SNIFFER_INTERVAL:-10}"
+      SNIFFER_TIMEOUT: "${SNIFFER_TIMEOUT:-2}"
     depends_on:
       wpww-warroom:
         condition: service_healthy
@@ -35,8 +39,9 @@ services:
       context: ./tools
     environment:
       WPWW_URL: "http://wpww-warroom:8080"
-      SIMULATOR_INTERVAL: "15"
+      SIMULATOR_INTERVAL: "${SIMULATOR_INTERVAL:-15}"
     depends_on:
       wpww-warroom:
         condition: service_healthy
     restart: unless-stopped
+
