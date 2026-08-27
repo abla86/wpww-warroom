@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "ownerRole": "MASTER",
+  "workspaces": {
+    "SANDBOX": {
+      "enabled": true,
+      "default": true,
+      "description": "Isolated WPWW laboratory workspace",
+      "requiresMasterForEnable": false,
+      "requiresMasterForDisable": true
+    },
+    "PC": {
+      "enabled": false,
+      "default": false,
+      "description": "Host/PC workspace; explicitly controlled and not an attack target by default",
+      "requiresMasterForEnable": true,
+      "requiresMasterForDisable": true
+    }
+  },
+  "runtime": {
+    "selectedWorkspace": "SANDBOX",
+    "workspaceLock": true,
+    "requireExplicitTargetSelection": true,
+    "allowCrossWorkspaceExperiments": false
+  },
+  "rules": {
+    "sandboxMayRunExperiments": true,
+    "pcMayRunOnlyOwnerApprovedOperations": true,
+    "noImplicitTargetSwitching": true,
+    "everyWorkspaceChangeIsAudited": true
+  }
+}
