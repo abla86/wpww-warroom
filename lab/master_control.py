@@ -15,6 +15,7 @@ CONTROL_PATH = ROOT / "master-control.json"
 REPORT_PATH = ROOT / "report-control.json"
 SESSION_PATH = ROOT / "master-session.json"
 MASTER_KEY_ENV = "WPWW_MASTER_KEY"
+MASTER_KEY_FILE = Path(os.getenv("WPWW_MASTER_KEY_FILE", "/run/secrets/wpww_master_key"))
 SESSION_TTL_SECONDS = max(300, int(os.getenv("WPWW_MASTER_SESSION_TTL", "3600")))
 
 _lock = RLock()
@@ -47,11 +48,27 @@ def _read(path: Path, fallback: dict[str, Any]) -> dict[str, Any]:
 def _write_atomic(path: Path, value: dict[str, Any]) -> None:
     ROOT.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(path.suffix + ".tmp")
-    temp.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
+    temp.write_text(
+        json.dumps(value, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     temp.replace(path)
 
 
 def _master_key() -> bytes | None:
+    """Read the master key from Docker Secret first, env var second.
+
+    The secret value is never persisted by WPWW. The environment fallback keeps
+    local development compatible with the existing compose configuration.
+    """
+    try:
+        if MASTER_KEY_FILE.is_file():
+            raw = MASTER_KEY_FILE.read_text(encoding="utf-8").strip()
+            if raw:
+                return raw.encode("utf-8")
+    except OSError:
+        pass
+
     secret = os.getenv(MASTER_KEY_ENV, "")
     return secret.encode("utf-8") if secret else None
 
@@ -81,15 +98,13 @@ def set_report_control(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def issue_master_session() -> dict[str, Any]:
-    """Issue a short-lived MASTER session using the external master secret.
-
-    The actual master secret is never written to GitHub, the control JSON, or
-    the session file. Only a SHA-256 digest of a random session token is
-    persisted. The secret therefore remains an environment/secret-store value.
-    """
+    """Issue a short-lived MASTER session using the external master secret."""
     with _lock:
         if _master_key() is None:
-            raise RuntimeError(f"{MASTER_KEY_ENV} is not configured")
+            raise RuntimeError(
+                "WPWW master secret is not configured; set the Docker secret "
+                "or WPWW_MASTER_KEY for local development"
+            )
 
         now = int(time.time())
         token = secrets.token_urlsafe(32)
@@ -100,7 +115,11 @@ def issue_master_session() -> dict[str, Any]:
             "role": "MASTER",
         }
         _write_atomic(SESSION_PATH, state)
-        return {"role": "MASTER", "token": token, "expiresAt": state["expiresAt"]}
+        return {
+            "role": "MASTER",
+            "token": token,
+            "expiresAt": state["expiresAt"],
+        }
 
 
 def verify_master_session(token: str | None) -> bool:
@@ -134,9 +153,9 @@ def require_master(session_token: str | None = None) -> None:
 
 
 def sign_control_action(action: str, session_token: str) -> str:
-    """Sign an authenticated control action with the external master key."""
+    """Sign an already-authenticated control action with the master key."""
     require_master(session_token)
     key = _master_key()
     if key is None:
-        raise RuntimeError(f"{MASTER_KEY_ENV} is not configured")
+        raise RuntimeError("WPWW master secret is not configured")
     return hmac.new(key, action.encode("utf-8"), hashlib.sha256).hexdigest()
