@@ -28,13 +28,15 @@ jobs:
 
       - run: npm install --package-lock-only
       - run: node --check server.js
-      - run: python3 -m py_compile verify_all.py tools/auto_heal.py tools/validate_wpww.py
+      - run: python3 -m py_compile verify_all.py tools/auto_heal.py tools/validate_wpww.py tools/mission_test.py
       - run: python3 tools/auto_heal.py
       - run: python3 tools/validate_wpww.py
       - run: test -s public/index.html
+      - run: test -s public/reaction.js
       - run: test -s Dockerfile
       - run: test -s docker-compose.yml
       - run: test -s verify_all.py
+      - run: test -s tools/mission_test.py
 
   container-smoke:
     runs-on: ubuntu-24.04
@@ -54,6 +56,8 @@ jobs:
           exit 1
       - name: Run complete verification
         run: python3 verify_all.py
+      - name: Run Mission Control verification
+        run: python3 tools/mission_test.py
       - name: Diagnostics on failure
         if: failure()
         run: |
