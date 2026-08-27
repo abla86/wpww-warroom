@@ -28,7 +28,9 @@ jobs:
 
       - run: npm install --package-lock-only
       - run: node --check server.js
-      - run: python3 -m py_compile verify_all.py
+      - run: python3 -m py_compile verify_all.py tools/auto_heal.py tools/validate_wpww.py
+      - run: python3 tools/auto_heal.py
+      - run: python3 tools/validate_wpww.py
       - run: test -s public/index.html
       - run: test -s Dockerfile
       - run: test -s docker-compose.yml
