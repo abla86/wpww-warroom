@@ -1,0 +1,47 @@
+{
+  "version": "1.0",
+  "formats": ["json", "csv", "html", "pdf"],
+  "fields": {
+    "run_id": true,
+    "timestamp": true,
+    "scenario": true,
+    "red_model": true,
+    "blue_model": true,
+    "database": true,
+    "mode": true,
+    "status": true,
+    "http_status": true,
+    "latency_ms": true,
+    "events": true,
+    "alerts": true,
+    "incidents": true,
+    "detections": true,
+    "blocks": true,
+    "quarantine": true,
+    "recovery": true,
+    "errors": true,
+    "telemetry": true,
+    "file_integrity": true,
+    "model_parameters": true,
+    "raw_events": false,
+    "payloads": false,
+    "environment": false
+  },
+  "filters": {
+    "sides": ["red", "blue", "observability", "testing"],
+    "models": [],
+    "scenarios": [],
+    "databases": [],
+    "statuses": [],
+    "from": null,
+    "to": null
+  },
+  "comparison": {
+    "enabled": true,
+    "group_by": ["red_model", "blue_model", "scenario", "database"],
+    "metrics": ["latency_ms", "detections", "blocks", "recovery", "errors"]
+  },
+  "include_raw": false,
+  "include_sensitive": false,
+  "master_override": true
+}
