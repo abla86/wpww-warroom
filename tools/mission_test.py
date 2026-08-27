@@ -56,16 +56,29 @@ def main() -> int:
     checks.append(("demo-mode", status == 200 and isinstance(body, dict) and body.get("mode") == "DEMO"))
 
     status, body = call("/api/simulate", "POST")
+    probe_id = body.get("incidentId") if isinstance(body, dict) else None
     checks.append(("controlled-probe", status == 200 and isinstance(body, dict) and body.get("action") == "defensive-probe"))
 
     status, body = call("/api/incidents")
     checks.append(("incident-feed", status == 200 and isinstance(body, dict) and isinstance(body.get("incidents"), list)))
 
+    status, body = call("/api/report")
+    checks.append(("report-contract", status == 200 and isinstance(body, dict) and isinstance(body.get("summary"), dict)))
+
+    if probe_id:
+        status, body = call(f"/api/replay/{probe_id}")
+        checks.append(("event-replay", status == 200 and isinstance(body, dict) and isinstance(body.get("replay"), list)))
+    else:
+        checks.append(("event-replay", False))
+
+    status, body = call("/api/alerts/test", "POST")
+    checks.append(("alert-test", status == 200 and isinstance(body, dict) and "alert" in body))
+
     status, body = call("/api/lockdown", "POST")
     checks.append(("local-lockdown", status == 200 and isinstance(body, dict) and body.get("lockdown") is True and body.get("externalSystemsAffected") is False))
 
     status, body = call("/api/lockdown/reset", "POST")
-    checks.append(("lockdown-reset", status == 200 and isinstance(body, dict) and body.get("lockdown") is False))
+    checks.append(("lockdown-reset", status == 200 and isinstance(body, dict) and body.get("lockdown") is False and body.get("externalSystemsAffected") is False))
 
     status, body = call("/api/mode", "POST", {"mode": "LIVE"})
     checks.append(("live-mode", status == 200 and isinstance(body, dict) and body.get("mode") == "LIVE"))
