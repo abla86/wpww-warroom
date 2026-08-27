@@ -1,0 +1,20 @@
+{
+  "mode": "auto",
+  "port": 8080,
+  "radarUrl": "http://host.docker.internal:5080",
+  "simulatePath": "/api/v1/internal/legacy-db-dump",
+  "features": {
+    "simulator": true,
+    "telemetry": false,
+    "ci": false,
+    "audio": true,
+    "history": true,
+    "incidentMode": true,
+    "snapshotExport": true
+  },
+  "limits": {
+    "eventHistory": 100,
+    "simulatorCooldownMs": 3000,
+    "requestTimeoutMs": 4000
+  }
+}
