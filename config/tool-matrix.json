@@ -1,0 +1,24 @@
+{
+  "description": "Optional WPWW engineering and security tool integrations.",
+  "defaultEnabled": false,
+  "tools": [
+    {"id":"owasp-zap","category":"dast","profile":"zap","purpose":"web application security testing"},
+    {"id":"trivy","category":"scanner","profile":"trivy","purpose":"container/filesystem/IaC vulnerability scanning"},
+    {"id":"semgrep","category":"sast","profile":"semgrep","purpose":"static code analysis"},
+    {"id":"gitleaks","category":"secrets","profile":"gitleaks","purpose":"secret detection"},
+    {"id":"prometheus","category":"metrics","profile":"prometheus","purpose":"metrics collection"},
+    {"id":"grafana","category":"observability","profile":"grafana","purpose":"dashboards and visualization"},
+    {"id":"opentelemetry","category":"telemetry","profile":"otel","purpose":"traces metrics logs"},
+    {"id":"loki","category":"logs","profile":"loki","purpose":"log aggregation"},
+    {"id":"elasticsearch","category":"search","profile":"elasticsearch","purpose":"event/search analytics"},
+    {"id":"kibana","category":"observability","profile":"kibana","purpose":"log/event visualization"},
+    {"id":"jaeger","category":"tracing","profile":"jaeger","purpose":"distributed tracing"},
+    {"id":"pytest","category":"testing","profile":"pytest","purpose":"Python test execution"},
+    {"id":"playwright","category":"e2e","profile":"playwright","purpose":"browser end-to-end testing"}
+  ],
+  "policy": {
+    "optInOnly": true,
+    "secretsViaEnvironment": true,
+    "externalTargetsDisabledByDefault": true
+  }
+}
