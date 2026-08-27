@@ -6,14 +6,19 @@ const radar = process.env.RADAR_URL || "http://host.docker.internal:5080";
 const simulatePath = process.env.SIMULATE_PATH || "/api/v1/internal/legacy-db-dump";
 const allowedSimulationPaths = new Set(["/api/v1/internal/legacy-db-dump"]);
 
+const flag = (name, fallback) => String(process.env[name] ?? fallback).toLowerCase() === "true";
 const flags = {
-  simulator: String(process.env.WPWW_ENABLE_SIMULATOR ?? "true").toLowerCase() === "true",
-  telemetry: String(process.env.WPWW_ENABLE_TELEMETRY ?? "false").toLowerCase() === "true",
-  ci: String(process.env.WPWW_ENABLE_CI ?? "false").toLowerCase() === "true",
-  audio: String(process.env.WPWW_ENABLE_AUDIO ?? "true").toLowerCase() === "true",
-  history: String(process.env.WPWW_ENABLE_HISTORY ?? "true").toLowerCase() === "true",
+  simulator: flag("WPWW_ENABLE_SIMULATOR", "true"),
+  telemetry: flag("WPWW_ENABLE_TELEMETRY", "false"),
+  ci: flag("WPWW_ENABLE_CI", "false"),
+  audio: flag("WPWW_ENABLE_AUDIO", "true"),
+  history: flag("WPWW_ENABLE_HISTORY", "true"),
+  alerts: flag("WPWW_ENABLE_ALERTS", "true"),
 };
 
+const alertCooldownMs = Math.max(0, Number(process.env.WPWW_ALERT_COOLDOWN_MS || 30000));
+const webhookUrl = process.env.WPWW_WEBHOOK_URL || "";
+let lastAlertAt = 0;
 let demoMode = false;
 let localLockdown = false;
 let lastSimulationUtc = null;
@@ -21,9 +26,7 @@ const localIncidents = [];
 const MAX_INCIDENTS = 100;
 
 function safeSimulationPath() {
-  return allowedSimulationPaths.has(simulatePath)
-    ? simulatePath
-    : "/api/v1/internal/legacy-db-dump";
+  return allowedSimulationPaths.has(simulatePath) ? simulatePath : "/api/v1/internal/legacy-db-dump";
 }
 
 function recordIncident(type, severity = "INFO", details = {}) {
@@ -40,6 +43,26 @@ function recordIncident(type, severity = "INFO", details = {}) {
   localIncidents.unshift(event);
   if (localIncidents.length > MAX_INCIDENTS) localIncidents.length = MAX_INCIDENTS;
   return event;
+}
+
+async function sendAlert(event) {
+  if (!flags.alerts || !webhookUrl || !event) return { sent: false, reason: "disabled_or_unconfigured" };
+  const now = Date.now();
+  if (now - lastAlertAt < alertCooldownMs) return { sent: false, reason: "cooldown" };
+  lastAlertAt = now;
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        content: `WPWW ${event.severity}: ${event.type} (${event.eventId})`,
+      }),
+      signal: AbortSignal.timeout(3000),
+    });
+    return { sent: response.ok, status: response.status };
+  } catch (error) {
+    return { sent: false, reason: "delivery_failed", error: error.message };
+  }
 }
 
 async function requestUpstream(path, options = {}) {
@@ -89,6 +112,7 @@ app.get("/api/warroom", async (_req, res) => {
       mode: demoMode ? "DEMO" : "LIVE",
       lockdown: localLockdown,
       flags,
+      alerts: { enabled: flags.alerts, configured: Boolean(webhookUrl), cooldownMs: alertCooldownMs },
       lastSimulationUtc,
       historyCount: localIncidents.length,
     },
@@ -107,18 +131,14 @@ app.get("/api/incidents", (_req, res) => {
 
 app.post("/api/mode", (req, res) => {
   const requested = String(req.body?.mode || "LIVE").toUpperCase();
-  if (!["LIVE", "DEMO"].includes(requested)) {
-    return res.status(400).json({ error: "mode must be LIVE or DEMO" });
-  }
+  if (!["LIVE", "DEMO"].includes(requested)) return res.status(400).json({ error: "mode must be LIVE or DEMO" });
   demoMode = requested === "DEMO";
   recordIncident("MODE_CHANGED", "INFO", { mode: requested });
   return res.json({ mode: requested });
 });
 
 app.post("/api/simulate", async (_req, res) => {
-  if (!flags.simulator) {
-    return res.status(409).json({ action: "defensive-probe", enabled: false, error: "Simulator disabled" });
-  }
+  if (!flags.simulator) return res.status(409).json({ action: "defensive-probe", enabled: false, error: "Simulator disabled" });
 
   const path = safeSimulationPath();
   const result = await requestUpstream(path, {
@@ -128,11 +148,13 @@ app.post("/api/simulate", async (_req, res) => {
 
   lastSimulationUtc = new Date().toISOString();
   const eventProduced = [200, 403, 418, 429].includes(result.status);
-  recordIncident("CONTROLLED_PROBE", result.status >= 400 ? "WARNING" : "INFO", {
+  const incident = recordIncident("CONTROLLED_PROBE", result.status >= 400 ? "WARNING" : "INFO", {
     upstreamStatus: result.status,
     upstreamReached: result.status !== 0,
     eventProduced,
   });
+
+  if (incident && result.status >= 400) void sendAlert(incident);
 
   return res.status(200).json({
     action: "defensive-probe",
@@ -144,17 +166,19 @@ app.post("/api/simulate", async (_req, res) => {
   });
 });
 
-app.post("/api/lockdown", (_req, res) => {
+app.post("/api/lockdown", async (_req, res) => {
   localLockdown = true;
   const incident = recordIncident("LOCAL_LOCKDOWN", "CRITICAL", {
     action: "WPWW local demo state only",
     externalSystemsAffected: false,
   });
+  const alert = incident ? await sendAlert(incident) : { sent: false, reason: "history_disabled" };
   res.json({
     mode: demoMode ? "DEMO" : "LIVE",
     lockdown: true,
     externalSystemsAffected: false,
     incidentId: incident?.eventId || null,
+    alert,
   });
 });
 
@@ -165,9 +189,7 @@ app.post("/api/lockdown/reset", (_req, res) => {
 });
 
 app.post("/api/history/clear", (_req, res) => {
-  if (!flags.history) {
-    return res.status(409).json({ error: "History disabled" });
-  }
+  if (!flags.history) return res.status(409).json({ error: "History disabled" });
   localIncidents.length = 0;
   res.json({ cleared: true });
 });
