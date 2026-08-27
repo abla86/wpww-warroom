@@ -18,24 +18,25 @@ DEFAULTS: dict[str, Any] = {
                 "view_dashboard",
                 "view_events",
                 "view_reports",
-                "run_enabled_experiments"
-            ]
+                "run_enabled_experiments",
+            ],
         },
         "MASTER": {
             "description": "Full owner/operator control of the WPWW laboratory",
-            "permissions": ["*"]
-        }
+            "permissions": ["*"],
+        },
     },
     "master": {
         "configured": False,
-        "authEnv": MASTER_KEY_ENV
+        "authEnv": MASTER_KEY_ENV,
+        "authMethod": "time_limited_session",
     },
     "runtime": {
         "defaultRole": "USER",
         "requireMasterForConfigChanges": True,
         "requireMasterForModuleChanges": True,
-        "requireMasterForCodeChanges": True
-    }
+        "requireMasterForCodeChanges": True,
+    },
 }
 
 
@@ -58,26 +59,41 @@ def _save(data: dict[str, Any]) -> None:
 
 
 def configure_master_key_from_environment() -> dict[str, Any]:
-    """Marks master access as configured when a non-empty secret exists.
+    """Record whether an external master secret is configured.
 
-    The secret itself is never written to the data file.
+    The secret value is never persisted. Privileged authentication is performed
+    through master_control.verify_master_session().
     """
     with _lock:
         data = _load()
         key = os.getenv(MASTER_KEY_ENV, "").strip()
         data.setdefault("master", {})["configured"] = bool(key)
+        data["master"]["authMethod"] = "time_limited_session"
         _save(data)
-        return {"configured": bool(key), "authEnv": MASTER_KEY_ENV}
+        return {"configured": bool(key), "authEnv": MASTER_KEY_ENV, "authMethod": "time_limited_session"}
 
 
-def authenticate(role: str, presented_key: str | None = None) -> bool:
+def authenticate(role: str, presented_key: str | None = None, session_token: str | None = None) -> bool:
+    """Authenticate USER or MASTER without storing the master secret.
+
+    MASTER authentication prefers the short-lived master session implemented by
+    master_control. The legacy presented-key argument remains accepted for API
+    compatibility but is no longer sufficient on its own.
+    """
     role = role.upper().strip()
     if role == "USER":
         return True
     if role != "MASTER":
         return False
-    expected = os.getenv(MASTER_KEY_ENV, "")
-    return bool(expected) and bool(presented_key) and presented_key == expected
+
+    try:
+        from master_control import verify_master_session
+        if verify_master_session(session_token):
+            return True
+    except (ImportError, OSError, ValueError):
+        return False
+
+    return False
 
 
 def has_permission(role: str, permission: str) -> bool:
@@ -87,8 +103,13 @@ def has_permission(role: str, permission: str) -> bool:
     return "*" in permissions or permission in permissions
 
 
-def can(role: str, permission: str, presented_key: str | None = None) -> bool:
-    if not authenticate(role, presented_key):
+def can(
+    role: str,
+    permission: str,
+    presented_key: str | None = None,
+    session_token: str | None = None,
+) -> bool:
+    if not authenticate(role, presented_key, session_token):
         return False
     return has_permission(role, permission)
 
@@ -98,5 +119,5 @@ def access_snapshot() -> dict[str, Any]:
     return {
         "roles": data.get("roles", {}),
         "master": data.get("master", {}),
-        "runtime": data.get("runtime", {})
+        "runtime": data.get("runtime", {}),
     }
