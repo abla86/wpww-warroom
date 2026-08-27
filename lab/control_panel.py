@@ -1,14 +1,12 @@
-"""
-WPWW WarRoom - Interaktivt kontrollpanel.
+"""WPWW WarRoom - interaktivt kontrollpanel.
 
-Terminalgrensesnitt for den samlede WPWW-enheten.
+Dette panelet bruker den samlede WPWW-runtime-en på BASE_URL.
 
 Prinsipper:
 - Bevar eksisterende funksjoner og tilpass eldre API-kontrakter til dagens runtime.
-- Ikke anta at en tjeneste, modul eller test er tilgjengelig: rapporter UNKNOWN ved manglende observasjon.
-- Bruk én samlet WPWW-runtime på BASE_URL.
-- Bruk læringsmatrisen og modulkontrollen når de finnes lokalt.
-- Brukerfiler inspiseres som data; de kjøres ikke automatisk av kontrollpanelet.
+- Ingen manglende observasjon tolkes som PASS.
+- Nettverksfeil vises som UNKNOWN.
+- Kontrollpanelet utfører ikke brukerfiler automatisk.
 """
 
 from __future__ import annotations
@@ -27,18 +25,16 @@ TIMEOUT = float(os.getenv("WPWW_CONTROL_TIMEOUT", "4"))
 try:
     from learning_matrix import display_learning_module
 except ImportError:
-    display_learning_module = None  # type: ignore[assignment]
+    display_learning_module = None
 
 try:
     from module_control import snapshot as module_snapshot, set_module
 except ImportError:
-    module_snapshot = None  # type: ignore[assignment]
-    set_module = None  # type: ignore[assignment]
+    module_snapshot = None
+    set_module = None
 
 
 class Colors:
-    """ANSI-farger for en lesbar terminal uten eksterne UI-avhengigheter."""
-
     HEADER = "\033[95m"
     BLUE = "\033[94m"
     GREEN = "\033[92m"
@@ -58,9 +54,9 @@ def request(
     method: str = "GET",
     payload: dict[str, Any] | None = None,
 ) -> tuple[int, Any]:
-    """Kall mot WPWW og returner (HTTP-status, dekodet body).
+    """Kall mot den samlede WPWW-runtime-en.
 
-    Status 0 betyr at målet ikke kunne nås. Det tolkes aldri som PASS.
+    HTTP-status 0 betyr at målet ikke kunne nås og blir aldri behandlet som PASS.
     """
     try:
         response = requests.request(
@@ -102,15 +98,13 @@ def pause() -> None:
 
 
 def show_health() -> None:
-    print(c("\n[ SYSTEMHELSERAPPORT ]", Colors.BLUE))
-    status, body = request("/healthz")
-    print_result(status, body)
+    print(c("\n[ SYSTEMHELSE ]", Colors.BLUE))
+    print_result(*request("/healthz"))
 
 
 def show_warroom() -> None:
     print(c("\n[ FULL WPWW-STATUS ]", Colors.BLUE))
-    status, body = request("/api/warroom")
-    print_result(status, body)
+    print_result(*request("/api/warroom"))
 
 
 def set_mode() -> None:
@@ -122,8 +116,7 @@ def set_mode() -> None:
     if value not in {"LIVE", "DEMO"}:
         print(c("Ugyldig modus. Tillatt: LIVE eller DEMO.", Colors.YELLOW))
         return
-    status, body = request("/api/mode", "POST", {"mode": value})
-    print_result(status, body)
+    print_result(*request("/api/mode", "POST", {"mode": value}))
 
 
 def toggle_lockdown() -> None:
@@ -132,19 +125,22 @@ def toggle_lockdown() -> None:
         print_result(status, state)
         return
     enabled = bool(state.get("lockdown"))
-    path = "/api/lockdown/reset" if enabled else "/api/lockdown"
-    status, body = request(path, "POST")
-    print_result(status, body)
+    endpoint = "/api/lockdown/reset" if enabled else "/api/lockdown"
+    print_result(*request(endpoint, "POST"))
 
 
 def controlled_probe() -> None:
-    """Kjør WPWWs interne, kontrollerte testscenario."""
+    """Kjør eksisterende intern simulator, med scenario-fallback."""
     status, body = request("/api/simulate", "POST")
     if status == 404:
         try:
-            scenario_id = input(
-                "Scenario [clean/deception/malformed/encoded] (Enter=deception): "
-            ).strip() or "deception"
+            scenario_id = (
+                input(
+                    "Scenario [clean/deception/malformed/encoded] "
+                    "(Enter=deception): "
+                ).strip()
+                or "deception"
+            )
         except (EOFError, KeyboardInterrupt):
             print()
             return
@@ -155,7 +151,7 @@ def controlled_probe() -> None:
 def test_alert() -> None:
     status, body = request("/api/alerts/test", "POST")
     if status == 404:
-        print(c("Alert-test-rute finnes ikke i dagens runtime; ingen antakelse gjøres.", Colors.YELLOW))
+        print(c("Alert-test-rute finnes ikke i dagens runtime.", Colors.YELLOW))
     print_result(status, body)
 
 
@@ -168,9 +164,8 @@ def show_audit_logs() -> None:
 
 def show_learning_matrix() -> None:
     if display_learning_module is None:
-        print(c("learning_matrix.py er ikke tilgjengelig i denne runtime-en.", Colors.YELLOW))
+        print(c("learning_matrix.py er ikke tilgjengelig i runtime-en.", Colors.YELLOW))
         return
-
     print("\n1. Angrepsmodeller")
     print("2. Forsvarsmodeller")
     try:
@@ -183,7 +178,6 @@ def show_learning_matrix() -> None:
         return
     selected_category = "attacks" if category == "1" else "defenses"
     display_learning_module(selected_category)
-
     try:
         topic = input("Nøkkel for detaljer (Enter for bare liste): ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -208,7 +202,6 @@ def modify_module() -> None:
     if set_module is None:
         print(c("module_control.py er ikke tilgjengelig lokalt.", Colors.YELLOW))
         return
-
     try:
         module_id = input("Modul-ID: ").strip()
         if not module_id:
@@ -288,6 +281,20 @@ def banner() -> None:
 
 
 def menu() -> None:
+    actions = {
+        "1": show_health,
+        "2": show_warroom,
+        "3": set_mode,
+        "4": toggle_lockdown,
+        "5": controlled_probe,
+        "6": test_alert,
+        "7": show_audit_logs,
+        "8": show_learning_matrix,
+        "9": show_modules,
+        "10": modify_module,
+        "11": inspect_user_files,
+        "12": show_reports,
+    }
     while True:
         try:
             banner()
@@ -308,37 +315,14 @@ def menu() -> None:
                 "[13] Exit\n"
             )
             choice = input(c("Velg: ", Colors.BOLD)).strip()
-
-            if choice == "1":
-                show_health()
-            elif choice == "2":
-                show_warroom()
-            elif choice == "3":
-                set_mode()
-            elif choice == "4":
-                toggle_lockdown()
-            elif choice == "5":
-                controlled_probe()
-            elif choice == "6":
-                test_alert()
-            elif choice == "7":
-                show_audit_logs()
-            elif choice == "8":
-                show_learning_matrix()
-            elif choice == "9":
-                show_modules()
-            elif choice == "10":
-                modify_module()
-            elif choice == "11":
-                inspect_user_files()
-            elif choice == "12":
-                show_reports()
-            elif choice == "13":
+            if choice == "13":
                 print("Avslutter kontrollpanelet.")
                 return
+            action = actions.get(choice)
+            if action is None:
+                print(c("Ugyldig valg.", Colors.YELLOW))
             else:
-                print(c("Ugyldig valg. Velg et nummer i menyen.", Colors.YELLOW))
-
+                action()
             pause()
         except KeyboardInterrupt:
             print(c("\nAvbrutt av bruker. Kontrollpanelet avsluttes.", Colors.GREEN))
