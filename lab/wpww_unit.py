@@ -99,7 +99,10 @@ def file_audit() -> dict:
         baseline = {}
     added = sorted(set(current) - set(baseline)) if baseline else []
     removed = sorted(set(baseline) - set(current)) if baseline else []
-    modified = sorted(name for name in set(current) & set(baseline) if current[name].get("sha256") != baseline[name].get("sha256")) if baseline else []
+    modified = sorted(
+        name for name in set(current) & set(baseline)
+        if current[name].get("sha256") != baseline[name].get("sha256")
+    ) if baseline else []
     return {
         "enabled": True,
         "directory": str(USER_FILES_DIR),
@@ -149,7 +152,8 @@ class Store:
             except (TypeError, ValueError, json.JSONDecodeError):
                 continue
 
-    def add(self, *, mode: str, source: str, type_: str, severity: str, action: str, status: int, details: dict) -> Event:
+    def add(self, *, mode: str, source: str, type_: str, severity: str,
+            action: str, status: int, details: dict) -> Event:
         with self.lock:
             event = Event(
                 id=f"wpww-{int(time.time() * 1000)}-{random.randrange(16**6):06x}",
@@ -187,7 +191,7 @@ def _module_snapshot() -> dict:
     try:
         from module_control import snapshot
         return snapshot()
-    except (ImportError, OSError, ValueError, json.JSONDecodeError) as exc:
+    except Exception as exc:
         return {"status": "UNKNOWN", "error": str(exc)}
 
 
@@ -197,14 +201,24 @@ def _module_update(module_id: str, payload: dict) -> dict:
     return set_module(module_id, **kwargs)
 
 
+def _device_snapshot() -> dict:
+    if not TELEMETRY_ENABLED:
+        return {"status": "NOT_APPLICABLE", "enabled": False}
+    try:
+        from device_watch import snapshot
+        return snapshot()
+    except Exception as exc:
+        return {"status": "UNKNOWN", "enabled": True, "error": str(exc)}
+
+
 def _telemetry() -> dict:
     if not TELEMETRY_ENABLED:
         return {"status": "NOT_APPLICABLE", "enabled": False}
     try:
         from telemetry_collector import snapshot
         return snapshot()
-    except Exception as exc:
-        return {"status": "UNKNOWN", "enabled": True, "error": str(exc)}
+    except Exception:
+        return _device_snapshot()
 
 
 def _capabilities() -> dict:
@@ -212,7 +226,7 @@ def _capabilities() -> dict:
         from capability_registry import snapshot
         return snapshot()
     except Exception as exc:
-        return {"status": "UNKNOWN", "error": str(exc)}
+        return {"status": "UNKNOWN", "error": str(exc), "tools": [], "databases": {}}
 
 
 def personality_message(event: dict | None = None) -> str:
@@ -254,6 +268,14 @@ def local_scenario(scenario: dict) -> dict:
     return asdict(event)
 
 
+def battle_snapshot() -> dict:
+    try:
+        from battle_lab import BattleLab
+        return {"status": "OBSERVED", **BattleLab().snapshot()}
+    except Exception as exc:
+        return {"status": "UNKNOWN", "error": str(exc)}
+
+
 def make_report() -> dict:
     events = STORE.recent(MAX_EVENTS)
     return {
@@ -266,7 +288,8 @@ def make_report() -> dict:
             "userFiles": file_audit().get("fileCount", 0),
         },
         "files": file_audit(), "modules": _module_snapshot(),
-        "telemetry": _telemetry(), "capabilities": _capabilities(),
+        "telemetry": _telemetry(), "deviceWatch": _device_snapshot(),
+        "capabilities": _capabilities(), "battleLab": battle_snapshot(),
         "events": events,
     }
 
@@ -337,29 +360,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"service": "WPWW Unified War Room", "status": "UP", "message": personality_message()})
         if path == "/healthz":
             return self._json(200, {"status": "Healthy", "service": "WPWW Unified War Room", "mode": MODE["value"], "lockdown": LOCKDOWN["value"], "modules": _module_snapshot(), "telemetry": _telemetry(), "capabilities": _capabilities()})
-        if path == "/audit-logs":
-            return self._json(200, STORE.recent())
+        if path == "/audit-logs": return self._json(200, STORE.recent())
         if path == "/api/warroom":
-            return self._json(200, {
-                "timestampUtc": utc_now(),
-                "wpww": {"mode": MODE["value"], "lockdown": LOCKDOWN["value"], "flags": FLAGS, "alerts": ALERT},
-                "message": personality_message(), "files": file_audit(), "modules": _module_snapshot(),
-                "telemetry": _telemetry(), "capabilities": _capabilities(),
-                "radar": {"health": "UP", "api": "UP", "events": STORE.recent(50)},
-            })
+            return self._json(200, {"timestampUtc": utc_now(), "wpww": {"mode": MODE["value"], "lockdown": LOCKDOWN["value"], "flags": FLAGS, "alerts": ALERT}, "message": personality_message(), "files": file_audit(), "modules": _module_snapshot(), "telemetry": _telemetry(), "capabilities": _capabilities(), "battleLab": battle_snapshot(), "radar": {"health": "UP", "api": "UP", "events": STORE.recent(50)}})
         if path == "/api/modules": return self._json(200, _module_snapshot())
-        if path == "/api/telemetry": return self._json(200, _telemetry())
+        if path == "/api/telemetry": return self._json(200, _device_snapshot())
         if path == "/api/capabilities": return self._json(200, _capabilities())
         if path == "/api/incidents": return self._json(200, {"mode": MODE["value"], "incidents": STORE.recent(100)})
         if path == "/api/files": return self._json(200, file_audit())
         if path == "/api/tools": return self._json(200, _capabilities().get("tools", []))
         if path == "/api/databases": return self._json(200, _capabilities().get("databases", {}))
-        if path == "/api/battle":
-            try:
-                from battle_lab import BattleLab
-                return self._json(200, BattleLab().snapshot())
-            except Exception as exc:
-                return self._json(200, {"status": "UNKNOWN", "error": str(exc)})
+        if path == "/api/battle": return self._json(200, battle_snapshot())
         if path == "/api/report.json": return self._json(200, make_report())
         if path == "/api/report.csv":
             raw = csv_report(make_report()).encode(); self.send_response(200); self.send_header("Content-Type", "text/csv; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
@@ -367,7 +378,7 @@ class Handler(BaseHTTPRequestHandler):
             raw = html_report(make_report()).encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
         if path == "/help":
             raw = ("WPWW Unified War Room\n\nLIVE/DEMO: POST /api/mode\nScenario: POST /api/scenario\nEvolution: POST /api/evolution\nModules: GET /api/modules, POST /api/modules/<id>\nTelemetry: GET /api/telemetry\nCapabilities: GET /api/capabilities\nBattleLab: GET /api/battle\nTools: GET /api/tools\nDatabases: GET /api/databases\nFiles: GET /api/files, POST /api/files/baseline\nReports: /api/report.json /api/report.csv /api/report.html\nIncidents: /api/incidents\nLockdown: POST /api/lockdown\nReset: POST /api/reset\n").encode(); self.send_response(200); self.send_header("Content-Type", "text/plain; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
-        self._json(404, {"error": "Route not found", "status": "NOT_FOUND"})
+        return self._json(404, {"error": "Route not found", "status": "NOT_FOUND"})
 
     def do_POST(self) -> None:
         path = self.path.split("?", 1)[0]
