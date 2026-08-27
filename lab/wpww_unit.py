@@ -49,6 +49,8 @@ FLAGS = {
     "reports": os.getenv("WPWW_ENABLE_REPORTS", "true").lower() == "true",
     "evolution": os.getenv("WPWW_ENABLE_EVOLUTION", "true").lower() == "true",
     "fileAudit": os.getenv("WPWW_ENABLE_FILE_AUDIT", "true").lower() == "true",
+    "databaseLab": os.getenv("WPWW_ENABLE_DATABASE_LAB", "true").lower() == "true",
+    "pluginLab": os.getenv("WPWW_ENABLE_PLUGIN_LAB", "true").lower() == "true",
 }
 
 
@@ -184,6 +186,23 @@ LOCKDOWN = {"value": False}
 ALERT = {"enabled": FLAGS["alerts"], "configured": bool(os.getenv("WPWW_WEBHOOK_URL"))}
 
 
+def _module_snapshot() -> dict:
+    try:
+        from module_control import snapshot
+        return snapshot()
+    except (ImportError, OSError, ValueError, json.JSONDecodeError) as exc:
+        return {"status": "UNKNOWN", "error": str(exc)}
+
+
+def _module_update(module_id: str, payload: dict) -> dict:
+    from module_control import set_module
+    kwargs = {}
+    for key in ("selected", "locked", "mode"):
+        if key in payload:
+            kwargs[key] = payload[key]
+    return set_module(module_id, **kwargs)
+
+
 def personality_message(event: dict | None = None) -> str:
     if PERSONALITY != "cozy":
         return "WPWW operational."
@@ -236,6 +255,7 @@ def make_report() -> dict:
             "userFiles": file_audit().get("fileCount", 0),
         },
         "files": file_audit(),
+        "modules": _module_snapshot(),
         "events": events,
     }
 
@@ -288,21 +308,37 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _read_json(self) -> dict:
+        length_raw = self.headers.get("Content-Length", "0")
+        try:
+            length = max(0, min(int(length_raw), 1_000_000))
+        except (TypeError, ValueError):
+            raise ValueError("Invalid Content-Length")
+        raw = self.rfile.read(length)
+        if not raw:
+            return {}
+        value = json.loads(raw.decode("utf-8", errors="strict"))
+        if not isinstance(value, dict):
+            raise ValueError("JSON object required")
+        return value
+
     def do_GET(self) -> None:
         path = self.path.split("?", 1)[0]
         if path in ("/", "/index.html"):
             return self._json(200, {"service": "WPWW Unified War Room", "status": "UP", "message": personality_message()})
         if path == "/healthz":
-            return self._json(200, {"status": "Healthy", "service": "WPWW Unified War Room", "mode": MODE["value"], "lockdown": LOCKDOWN["value"]})
+            return self._json(200, {"status": "Healthy", "service": "WPWW Unified War Room", "mode": MODE["value"], "lockdown": LOCKDOWN["value"], "modules": _module_snapshot()})
         if path == "/audit-logs":
             return self._json(200, STORE.recent())
         if path == "/api/warroom":
             return self._json(200, {
                 "timestampUtc": utc_now(),
                 "wpww": {"mode": MODE["value"], "lockdown": LOCKDOWN["value"], "flags": FLAGS, "alerts": ALERT},
-                "message": personality_message(), "files": file_audit(),
+                "message": personality_message(), "files": file_audit(), "modules": _module_snapshot(),
                 "radar": {"health": "UP", "api": "UP", "events": STORE.recent(50)},
             })
+        if path == "/api/modules":
+            return self._json(200, _module_snapshot())
         if path == "/api/incidents":
             return self._json(200, {"mode": MODE["value"], "incidents": STORE.recent(100)})
         if path == "/api/files":
@@ -321,6 +357,7 @@ class Handler(BaseHTTPRequestHandler):
                 "LIVE/DEMO: POST /api/mode\n"
                 "Scenario: POST /api/scenario\n"
                 "Evolution: POST /api/evolution\n"
+                "Modules: GET /api/modules, POST /api/modules/<id>\n"
                 "Files: GET /api/files, POST /api/files/baseline\n"
                 "Reports: /api/report.json /api/report.csv /api/report.html\n"
                 "Incidents: /api/incidents\n"
@@ -328,73 +365,87 @@ class Handler(BaseHTTPRequestHandler):
                 "Reset: POST /api/reset\n"
             )
             raw = text.encode(); self.send_response(200); self.send_header("Content-Type", "text/plain; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
-        self._json(404, {"error": "Route not found", "code": 404})
+        self._json(404, {"error": "Route not found", "status": "NOT_FOUND"})
 
     def do_POST(self) -> None:
         path = self.path.split("?", 1)[0]
-        length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(length) if length else b"{}"
         try:
-            payload = json.loads(body.decode("utf-8"))
-            if not isinstance(payload, dict):
-                payload = {}
-        except json.JSONDecodeError:
-            payload = {}
+            payload = self._read_json()
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            return self._json(400, {"error": "Invalid JSON request", "detail": str(exc), "status": "BAD_REQUEST"})
 
         if path == "/api/mode":
-            requested = str(payload.get("mode", "LIVE")).upper()
-            if requested not in {"LIVE", "DEMO"}:
-                return self._json(400, {"error": "mode must be LIVE or DEMO"})
-            MODE["value"] = requested
-            event = STORE.add(mode=requested, source="mission-control", type_="MODE_CHANGED", severity="INFO", action="MODE_SET", status=200, details={"mode": requested})
-            return self._json(200, {"mode": requested, "eventId": event.id})
-
-        if path == "/api/scenario":
-            if not FLAGS["simulator"]:
-                return self._json(409, {"error": "Simulator disabled"})
-            scenario_id = str(payload.get("scenario", "clean"))
-            scenario = next((s for s in SCENARIOS if s["id"] == scenario_id), None)
-            if scenario is None:
-                return self._json(400, {"error": "Unknown controlled scenario"})
-            return self._json(200, local_scenario(scenario))
-
-        if path == "/api/evolution":
-            if not FLAGS["evolution"]:
-                return self._json(409, {"error": "Evolution disabled"})
-            return self._json(200, evolution_run(payload.get("steps", 12)))
+            mode = str(payload.get("mode", "")).upper()
+            if mode not in {"LIVE", "DEMO"}:
+                return self._json(400, {"error": "mode must be LIVE or DEMO", "status": "BAD_REQUEST"})
+            MODE["value"] = mode
+            STORE.add(mode=mode, source="control-panel", type_="MODE_CHANGE", severity="INFO", action="MODE_UPDATED", status=200, details={"mode": mode})
+            return self._json(200, {"mode": mode, "status": "UPDATED"})
 
         if path == "/api/lockdown":
             LOCKDOWN["value"] = True
-            event = STORE.add(mode=MODE["value"], source="mission-control", type_="LOCAL_LOCKDOWN", severity="CRITICAL", action="LOCAL_ONLY_LOCKDOWN", status=200, details={"externalSystemsAffected": False})
-            return self._json(200, {"lockdown": True, "externalSystemsAffected": False, "eventId": event.id})
+            STORE.add(mode=MODE["value"], source="control-panel", type_="LOCKDOWN", severity="WARNING", action="LOCKDOWN_ENABLED", status=200, details={})
+            return self._json(200, {"lockdown": True, "status": "UPDATED"})
 
         if path == "/api/lockdown/reset":
             LOCKDOWN["value"] = False
-            event = STORE.add(mode=MODE["value"], source="mission-control", type_="LOCAL_LOCKDOWN_RESET", severity="INFO", action="RESET", status=200, details={"externalSystemsAffected": False})
-            return self._json(200, {"lockdown": False, "eventId": event.id})
+            STORE.add(mode=MODE["value"], source="control-panel", type_="LOCKDOWN", severity="INFO", action="LOCKDOWN_DISABLED", status=200, details={})
+            return self._json(200, {"lockdown": False, "status": "UPDATED"})
 
-        if path in {"/api/history/clear", "/api/reset"}:
+        if path == "/api/reset":
             STORE.clear()
-            return self._json(200, {"cleared": True})
+            return self._json(200, {"status": "RESET"})
+
+        if path == "/api/simulate":
+            return self._json(200, {"target": "Security Radar controlled route", "event": local_scenario(SCENARIOS[1])})
+
+        if path == "/api/scenario":
+            scenario_id = str(payload.get("scenario", "")).strip()
+            scenario = next((item for item in SCENARIOS if item["id"] == scenario_id), None)
+            if scenario is None:
+                return self._json(404, {"error": "Unknown scenario", "status": "NOT_FOUND"})
+            return self._json(200, local_scenario(scenario))
+
+        if path == "/api/evolution":
+            try:
+                steps = int(payload.get("steps", 12))
+            except (TypeError, ValueError):
+                return self._json(400, {"error": "steps must be an integer", "status": "BAD_REQUEST"})
+            return self._json(200, evolution_run(steps))
+
+        if path.startswith("/api/modules/"):
+            module_id = path.removeprefix("/api/modules/").strip()
+            if not module_id:
+                return self._json(400, {"error": "module id required", "status": "BAD_REQUEST"})
+            try:
+                result = _module_update(module_id, payload)
+            except KeyError as exc:
+                return self._json(404, {"error": str(exc), "status": "NOT_FOUND"})
+            except Exception as exc:
+                return self._json(500, {"error": "Module update failed", "detail": str(exc), "status": "ERROR"})
+            STORE.add(mode=MODE["value"], source="module-control", type_="MODULE_CHANGE", severity="INFO", action="MODULE_UPDATED", status=200, details={"module": module_id, "changes": payload})
+            return self._json(200, result)
 
         if path == "/api/files/baseline":
-            current = file_inventory()
-            (DATA_DIR / "user_files_baseline.json").write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
-            return self._json(200, {"baselineCreated": True, "fileCount": len(current)})
+            baseline_path = DATA_DIR / "user_files_baseline.json"
+            baseline_path.parent.mkdir(parents=True, exist_ok=True)
+            baseline_path.write_text(json.dumps(file_inventory(), indent=2, ensure_ascii=False), encoding="utf-8")
+            STORE.add(mode=MODE["value"], source="file-audit", type_="FILE_BASELINE", severity="INFO", action="BASELINE_UPDATED", status=200, details={"path": str(baseline_path)})
+            return self._json(200, {"status": "BASELINE_UPDATED", "files": file_inventory()})
 
-        self._json(404, {"error": "Route not found", "code": 404})
+        if path == "/api/alerts/test":
+            configured = bool(os.getenv("WPWW_WEBHOOK_URL"))
+            STORE.add(mode=MODE["value"], source="alerting", type_="ALERT_TEST", severity="INFO", action="ALERT_TESTED", status=200, details={"configured": configured})
+            return self._json(200, {"status": "TESTED", "configured": configured})
 
-    def log_message(self, fmt: str, *args) -> None:
-        print(f"[WPWW] {fmt % args}")
+        return self._json(404, {"error": "Route not found", "status": "NOT_FOUND"})
 
 
-def main() -> None:
-    print("☕ WPWW Unified War Room starting")
-    print(f"   HTTP: 0.0.0.0:{PORT}")
-    print(f"   User files: {USER_FILES_DIR}")
+def run() -> None:
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    print(f"WPWW War Room listening on :{PORT}")
     server.serve_forever()
 
 
 if __name__ == "__main__":
-    main()
+    run()
