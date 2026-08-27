@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "roles": {
+    "USER": {
+      "label": "Study / User",
+      "permissions": [
+        "view_dashboard",
+        "view_events",
+        "view_reports",
+        "run_enabled_experiments"
+      ],
+      "canChangeModules": false,
+      "canChangeSystemConfig": false,
+      "canChangeSource": false
+    },
+    "MASTER": {
+      "label": "WPWW Master",
+      "permissions": ["*"],
+      "canChangeModules": true,
+      "canChangeSystemConfig": true,
+      "canChangeSource": true
+    }
+  },
+  "masterOnly": [
+    "lock_module",
+    "unlock_module",
+    "select_module",
+    "deselect_module",
+    "change_module_mode",
+    "change_experiment_configuration",
+    "change_database_configuration",
+    "change_tool_configuration",
+    "change_runtime_configuration",
+    "edit_user_files_policy",
+    "perform_code_change",
+    "reset_lab_state"
+  ]
+}
