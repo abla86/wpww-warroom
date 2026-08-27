@@ -39,9 +39,9 @@ def wait_for_health(attempts: int = 30) -> None:
     raise RuntimeError("WPWW /healthz did not become ready")
 
 
-def check(name: str, fn) -> bool:
+def check(name: str, condition) -> bool:
     try:
-        ok = bool(fn())
+        ok = bool(condition())
     except Exception as exc:
         print(f"[FAIL] {name}: {exc}")
         return False
@@ -57,38 +57,48 @@ def main() -> int:
     health_status, health_body = request("/healthz")
     war_status, war_body = request("/api/warroom")
     simulation_status, simulation_body = request("/api/simulate", "POST")
+    missing_status, missing_body = request("/api/route-that-does-not-exist")
 
     checks = [
-        ("frontend-load", frontend_status == 200),
-        ("health-contract", health_status == 200 and isinstance(health_body, dict)),
+        ("frontend-load", lambda: frontend_status == 200),
+        (
+            "health-contract",
+            lambda: health_status == 200
+            and isinstance(health_body, dict)
+            and health_body.get("status") == "Healthy",
+        ),
         (
             "warroom-contract",
-            war_status == 200
+            lambda: war_status == 200
             and isinstance(war_body, dict)
             and isinstance(war_body.get("radar"), dict)
-            and "health" in war_body["radar"]
-            and "api" in war_body["radar"],
+            and war_body["radar"].get("health") in {"UP", "DOWN", "UNKNOWN"}
+            and war_body["radar"].get("api") in {"UP", "DOWN", "UNKNOWN"},
         ),
         (
             "event-feed-shape",
-            war_status == 200
-            and isinstance(war_body, dict)
+            lambda: war_status == 200
             and isinstance(war_body.get("radar", {}).get("events"), list),
         ),
         (
             "simulator-contract",
-            simulation_status == 200
+            lambda: simulation_status == 200
             and isinstance(simulation_body, dict)
             and simulation_body.get("action") == "defensive-probe"
-            and isinstance(simulation_body.get("upstreamStatus"), int),
+            and simulation_body.get("target") == "Security Radar controlled route"
+            and isinstance(simulation_body.get("upstreamStatus"), int)
+            and isinstance(simulation_body.get("upstreamReached"), bool)
+            and isinstance(simulation_body.get("eventProduced"), bool),
+        ),
+        (
+            "unknown-route",
+            lambda: missing_status == 404
+            and isinstance(missing_body, dict)
+            and missing_body.get("code") == 404,
         ),
     ]
 
-    passed = 0
-    for name, condition in checks:
-        if check(name, lambda condition=condition: condition):
-            passed += 1
-
+    passed = sum(check(name, condition) for name, condition in checks)
     total = len(checks)
     print(f"{passed}/{total} checks passed")
     return 0 if passed == total else 1
