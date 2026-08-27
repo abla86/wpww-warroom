@@ -4,8 +4,9 @@ services:
     ports:
       - "${WPWW_PORT:-8080}:8080"
     environment:
-      PORT: "8080"
+      WPWW_LAB_PORT: "8080"
       WPWW_DATA_DIR: "/data"
+      WPWW_USER_FILES_DIR: "/app/user_files"
       WPWW_PERSONALITY: "${WPWW_PERSONALITY:-cozy}"
       WPWW_ENABLE_SIMULATOR: "${WPWW_ENABLE_SIMULATOR:-true}"
       WPWW_ENABLE_TELEMETRY: "${WPWW_ENABLE_TELEMETRY:-true}"
@@ -15,13 +16,15 @@ services:
       WPWW_ENABLE_REPLAY: "${WPWW_ENABLE_REPLAY:-true}"
       WPWW_ENABLE_REPORTS: "${WPWW_ENABLE_REPORTS:-true}"
       WPWW_ENABLE_EVOLUTION: "${WPWW_ENABLE_EVOLUTION:-true}"
+      WPWW_ENABLE_FILE_AUDIT: "${WPWW_ENABLE_FILE_AUDIT:-true}"
       WPWW_ENABLE_DATABASE_LAB: "${WPWW_ENABLE_DATABASE_LAB:-true}"
       WPWW_ENABLE_PLUGIN_LAB: "${WPWW_ENABLE_PLUGIN_LAB:-true}"
       WPWW_WEBHOOK_URL: "${WPWW_WEBHOOK_URL:-}"
     volumes:
       - wpww_data:/data
+      - ./lab/user_files:/app/user_files
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
       interval: 10s
       timeout: 3s
       retries: 5
