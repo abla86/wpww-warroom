@@ -84,3 +84,7 @@ WPWW is a defensive demonstration and monitoring interface for systems you contr
 ## Scope
 
 WPWW is intentionally standalone. It can monitor the Azure/Kubernetes showcase without being part of that repository, and it can later be extended with CI, Kubernetes and FinOps adapters without coupling its core UI to a single infrastructure stack.
+
+## Current verification state
+
+The repository documents configuration and behavior that can be checked locally. It does not claim an upstream service is healthy when that service is unavailable, and it does not treat a successful container build as proof of production runtime behavior.
