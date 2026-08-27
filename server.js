@@ -14,6 +14,8 @@ const flags = {
   audio: flag("WPWW_ENABLE_AUDIO", "true"),
   history: flag("WPWW_ENABLE_HISTORY", "true"),
   alerts: flag("WPWW_ENABLE_ALERTS", "true"),
+  replay: flag("WPWW_ENABLE_REPLAY", "true"),
+  reports: flag("WPWW_ENABLE_REPORTS", "true"),
 };
 
 const alertCooldownMs = Math.max(0, Number(process.env.WPWW_ALERT_COOLDOWN_MS || 30000));
@@ -129,12 +131,37 @@ app.get("/api/incidents", (_req, res) => {
   res.json({ mode: demoMode ? "DEMO" : "LIVE", incidents: localIncidents });
 });
 
+app.get("/api/replay/:eventId", (req, res) => {
+  if (!flags.replay) return res.status(409).json({ error: "Replay disabled" });
+  const index = localIncidents.findIndex((event) => event.eventId === req.params.eventId);
+  if (index < 0) return res.status(404).json({ error: "Event not found", code: 404 });
+  const timeline = localIncidents.slice(index, index + 10).reverse();
+  res.json({ eventId: req.params.eventId, replay: timeline });
+});
+
+app.get("/api/report", (_req, res) => {
+  if (!flags.reports) return res.status(409).json({ error: "Reports disabled" });
+  const threats = localIncidents.filter((event) => ["WARNING", "CRITICAL"].includes(event.severity));
+  const latest = localIncidents[0] || null;
+  res.json({
+    generatedAtUtc: new Date().toISOString(),
+    mode: demoMode ? "DEMO" : "LIVE",
+    summary: {
+      totalEvents: localIncidents.length,
+      threats: threats.length,
+      lockdown: localLockdown,
+      latestEventId: latest?.eventId || null,
+    },
+    incidents: localIncidents,
+  });
+});
+
 app.post("/api/mode", (req, res) => {
   const requested = String(req.body?.mode || "LIVE").toUpperCase();
   if (!["LIVE", "DEMO"].includes(requested)) return res.status(400).json({ error: "mode must be LIVE or DEMO" });
   demoMode = requested === "DEMO";
-  recordIncident("MODE_CHANGED", "INFO", { mode: requested });
-  return res.json({ mode: requested });
+  const incident = recordIncident("MODE_CHANGED", "INFO", { mode: requested });
+  res.json({ mode: requested, incidentId: incident?.eventId || null });
 });
 
 app.post("/api/simulate", async (_req, res) => {
@@ -156,13 +183,14 @@ app.post("/api/simulate", async (_req, res) => {
 
   if (incident && result.status >= 400) void sendAlert(incident);
 
-  return res.status(200).json({
+  res.status(200).json({
     action: "defensive-probe",
     target: "Security Radar controlled route",
     upstreamStatus: result.status,
     upstreamReached: result.status !== 0,
     eventProduced,
     simulationPath: path,
+    incidentId: incident?.eventId || null,
   });
 });
 
@@ -173,25 +201,25 @@ app.post("/api/lockdown", async (_req, res) => {
     externalSystemsAffected: false,
   });
   const alert = incident ? await sendAlert(incident) : { sent: false, reason: "history_disabled" };
-  res.json({
-    mode: demoMode ? "DEMO" : "LIVE",
-    lockdown: true,
-    externalSystemsAffected: false,
-    incidentId: incident?.eventId || null,
-    alert,
-  });
+  res.json({ mode: demoMode ? "DEMO" : "LIVE", lockdown: true, externalSystemsAffected: false, incidentId: incident?.eventId || null, alert });
 });
 
 app.post("/api/lockdown/reset", (_req, res) => {
   localLockdown = false;
-  recordIncident("LOCAL_LOCKDOWN_RESET", "INFO", { externalSystemsAffected: false });
-  res.json({ lockdown: false, externalSystemsAffected: false });
+  const incident = recordIncident("LOCAL_LOCKDOWN_RESET", "INFO", { externalSystemsAffected: false });
+  res.json({ lockdown: false, externalSystemsAffected: false, incidentId: incident?.eventId || null });
 });
 
 app.post("/api/history/clear", (_req, res) => {
   if (!flags.history) return res.status(409).json({ error: "History disabled" });
   localIncidents.length = 0;
   res.json({ cleared: true });
+});
+
+app.post("/api/alerts/test", async (_req, res) => {
+  const event = recordIncident("ALERT_TEST", "WARNING", { source: "mission-control" });
+  const alert = await sendAlert(event);
+  res.json({ eventId: event?.eventId || null, alert });
 });
 
 app.use((_req, res) => {
