@@ -28,8 +28,9 @@ jobs:
 
       - run: npm install --package-lock-only
       - run: node --check server.js
-      - run: python3 -m py_compile verify_all.py tools/auto_heal.py tools/validate_wpww.py tools/mission_test.py
+      - run: python3 -m py_compile verify_all.py tools/auto_heal.py tools/validate_wpww.py tools/mission_test.py tools/mission_control.py tools/incident_engine.py tools/report_export.py tools/module_inventory.py
       - run: python3 tools/auto_heal.py
+      - run: python3 tools/module_inventory.py
       - run: python3 tools/validate_wpww.py
       - run: test -s public/index.html
       - run: test -s public/reaction.js
@@ -58,6 +59,8 @@ jobs:
         run: python3 verify_all.py
       - name: Run Mission Control verification
         run: python3 tools/mission_test.py
+      - name: Run module inventory
+        run: python3 tools/module_inventory.py
       - name: Diagnostics on failure
         if: failure()
         run: |
