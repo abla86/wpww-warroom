@@ -45,3 +45,22 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  evolution-lab:
+    profiles: ["evolution"]
+    build:
+      context: ./evolution-attacker
+    environment:
+      WPWW_URL: "http://wpww-warroom:8080"
+      EVOLUTION_STEPS: "${EVOLUTION_STEPS:-12}"
+      EVOLUTION_EPSILON: "${EVOLUTION_EPSILON:-0.20}"
+      EVOLUTION_PAUSE: "${EVOLUTION_PAUSE:-2}"
+      EVOLUTION_LOG: "/data/attacker_evolution.jsonl"
+    volumes:
+      - evolution_data:/data
+    depends_on:
+      wpww-warroom:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  evolution_data:
