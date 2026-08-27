@@ -129,6 +129,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          curl --fail --silent http://127.0.0.1:8080/api/report.json > /tmp/report.json
           python - <<'PY'
           import json
           with open('/tmp/report.json', encoding='utf-8') as f:
@@ -152,18 +153,12 @@ jobs:
           set -euo pipefail
           curl --fail --silent http://127.0.0.1:8080/audit-logs > /tmp/audit.json
           python - <<'PY'
-          import hashlib
           import json
-
           with open('/tmp/audit.json', encoding='utf-8') as f:
               data = json.load(f)
-
           assert isinstance(data, list)
           assert data, 'Expected at least one event after scenario tests'
-          assert all('hash' in e and 'previousHash' in e for e in data)
-
-          # Events are newest-first. Verify the local backward chain.
-          previous = data[-1]['previousHash'] if data else None
+          assert all('hash' in event and 'previousHash' in event for event in data)
           print(f'Event history verified: {len(data)} events')
           PY
 
@@ -183,29 +178,37 @@ jobs:
           assert summary['total'] >= 1
           assert 'evidence' in summary
           rows = learning_matrix.entries()
+          allowed = {
+              'OBSERVED', 'VERIFIED', 'TESTED', 'PASS',
+              'FAIL', 'UNKNOWN', 'NOT_TESTED', 'NOT_APPLICABLE'
+          }
           for row in rows:
-              evidence = row.get('evidence', {})
-              assert evidence.get('status') in {
-                  'OBSERVED', 'VERIFIED', 'TESTED', 'PASS',
-                  'FAIL', 'UNKNOWN', 'NOT_TESTED', 'NOT_APPLICABLE'
-              }
+              assert row.get('evidence', {}).get('status') in allowed
           print(json.dumps(summary, indent=2))
           PY
 
       - name: Verify master control isolation
         shell: bash
+        env:
+          WPWW_MASTER_KEY: ci-test-master-secret
+          WPWW_DATA_DIR: /tmp/wpww-master-ci
+        shell: bash
         run: |
           set -euo pipefail
-          docker compose exec -T -e WPWW_MASTER_KEY= ci-test-placeholder python - <<'PY'
+          rm -rf "$WPWW_DATA_DIR"
+          python - <<'PY'
           import sys
-          sys.path.insert(0, '/app/lab')
-          from master_control import issue_master_session, verify_master_session
+          from pathlib import Path
+          sys.path.insert(0, str(Path('lab').resolve()))
+          from master_control import issue_master_session, verify_master_session, revoke_master_session
 
           session = issue_master_session()
           assert session['role'] == 'MASTER'
           assert session['token']
           assert verify_master_session(session['token']) is True
           assert verify_master_session('invalid-token') is False
+          revoke_master_session()
+          assert verify_master_session(session['token']) is False
           print('Master session verification passed')
           PY
 
