@@ -1,90 +1,131 @@
 # WPWW War Room
 
-Standalone live operations dashboard for controlled security, resilience and verification demonstrations.
+Standalone live operations and research lab for controlled security, resilience, observability and verification experiments.
 
-## What it does
+## Core
 
-WPWW reads live state from the configured Security Radar and presents it as a War Room view rather than hardcoded green status.
+WPWW provides one local control plane for:
 
-It shows:
+- live/DEMO modes
+- Mission Control feature flags
+- Security Radar state
+- controlled simulation
+- alerts with cooldown
+- incident history
+- local lockdown/reset state
+- event replay
+- report generation
+- Auto-Heal runtime repair
+- Evolution Lab
+- module/plugin inventory
+- deterministic E2E verification
+- GitHub Actions CI
 
-- overall defensive posture
-- Security Radar health and API status
-- rate-limiting and structured-event capability state
-- recent security events
-- a bounded defensive simulator action
-- service/capability matrix
-- automatic browser refresh every 3 seconds
-- a short Web Audio alert when a new event appears
+Unavailable upstream services are shown as `UNKNOWN`, `DOWN` or `OFFLINE`. WPWW does not turn a container build into a claim of production health.
 
-Unavailable upstream data is shown as `UNKNOWN`, `DOWN` or `OFFLINE` rather than being presented as successful.
+## Research Lab
 
-## Run locally
+The repository includes an extensible lab contract for manually adding software, databases, telemetry systems and analysis tools.
+
+Experiment modes:
+
+- `single`
+- `pairwise`
+- `matrix`
+- `pipeline`
+
+Every participant is validated as `wpww-local`. A plugin cannot turn the experiment engine into an arbitrary remote-target runner.
+
+## Database matrix
+
+Available as opt-in Docker profiles:
+
+- PostgreSQL
+- MySQL
+- MariaDB
+- MongoDB
+- Redis
+- SQLite lab volume
+
+These are not started by the default WPWW command.
+
+## Tool matrix
+
+The lab manifest contains opt-in adapters for established tools including:
+
+- OWASP ZAP
+- Semgrep
+- Trivy
+- Gitleaks
+- Playwright
+- pytest
+- Prometheus
+- Grafana
+- OpenTelemetry
+- Loki
+- Jaeger
+
+A manifest entry does not mean the external product is installed. Disabled adapters are explicitly reported as not installed until their entrypoint exists.
+
+## Evolution Lab
+
+`evolution-attacker/` is a bounded adaptive experiment against WPWW's own fixed local scenarios. The agent uses exploration/learning to choose among controlled observations, records latency/reward/state, and writes a forensic log. It does not accept arbitrary targets.
+
+Run:
+
+```powershell
+docker compose --profile evolution up --build
+```
+
+## Optional profiles
+
+```powershell
+docker compose --profile telemetry up --build
+
+docker compose --profile simulation up --build
+docker compose --profile evolution up --build
+```
+
+Combine profiles:
+
+```powershell
+docker compose --profile telemetry --profile simulation --profile evolution up --build
+```
+
+## Local dashboard
 
 ```powershell
 docker compose up --build -d
 ```
 
-Open:
+Open `http://localhost:8080`.
 
-`http://localhost:8080`
+## Reports
 
-## Configuration
+The Research Lab report contract supports:
 
-By default WPWW expects Security Radar at:
+- JSON
+- CSV
+- HTML
 
-`http://host.docker.internal:5080`
+PDF is reserved for the report adapter layer and should only be marked available when the PDF generator is actually installed and tested in CI.
 
-Override with:
+## Security and secrets
 
-```powershell
-$env:RADAR_URL="http://localhost:5080"
-docker compose up --build -d
-```
-
-The simulator does not accept arbitrary targets. It calls one configured controlled Security Radar route only.
-
-## Architecture
-
-```text
-Browser
-   |
-   v
-WPWW War Room
-   |
-   +--> /api/warroom
-   |       |
-   |       +--> Security Radar /health
-   |       +--> Security Radar /api/status
-   |       +--> Security Radar /api/events
-   |
-   +--> /api/simulate
-           |
-           +--> configured defensive route only
-```
-
-The browser never receives the upstream Radar base URL as a configurable attack target from user input.
+Secrets are never committed to the repository. Webhook URLs and signature secrets are supplied through environment variables or external secret stores. The signature module uses a secret outside source control.
 
 ## CI
 
-`.github/workflows/ci.yml` automatically:
+`.github/workflows/ci.yml` validates source syntax, runtime-state repair, module inventory, required files, Docker startup, `/healthz`, the full verification suite and Mission Control checks. Failures collect container diagnostics before teardown.
 
-1. validates the Node server and required files
-2. builds the container
-3. starts WPWW in Docker Compose
-4. verifies the HTTP frontend
-5. verifies the `/api/warroom` JSON contract
-6. collects container diagnostics on failure
-7. tears down the test environment
+## Extension workflow
+
+1. Add the plugin definition to `lab/plugin-manifest.json`.
+2. Add its implementation under the declared entrypoint.
+3. Mark it `enabled: false` until the implementation is present and tested.
+4. Add its result mapping to the common experiment/report schema.
+5. Enable it only after the corresponding smoke/E2E checks are green.
 
 ## Safety boundary
 
-WPWW is a defensive demonstration and monitoring interface for systems you control. The simulator is deliberately bounded and does not provide arbitrary scanning, target selection, credential attacks or destructive actions.
-
-## Scope
-
-WPWW is intentionally standalone. It can monitor the Azure/Kubernetes showcase without being part of that repository, and it can later be extended with CI, Kubernetes and FinOps adapters without coupling its core UI to a single infrastructure stack.
-
-## Current verification state
-
-The repository documents configuration and behavior that can be checked locally. It does not claim an upstream service is healthy when that service is unavailable, and it does not treat a successful container build as proof of production runtime behavior.
+WPWW is designed as a local controlled laboratory. Red-side modules are scenario-driven and bounded to WPWW-owned endpoints. Blue-side modules observe, detect, rate-limit, quarantine or report within the same controlled lab. No component is intended to scan, attack or interfere with arbitrary external systems.
