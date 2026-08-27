@@ -1,112 +1,145 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="no">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WPWW War Room</title>
+<title>WPWW // War Room</title>
 <style>
-:root {
-  color-scheme: dark;
-  --bg:#070b14;
-  --panel:#101827;
-  --panel2:#0c1320;
-  --border:#223047;
-  --text:#e6edf7;
-  --muted:#8190a5;
-  --good:#42e695;
-  --bad:#ff5577;
-  --warn:#ffd166;
-  --accent:#60a5fa;
-}
+:root{color-scheme:dark;--bg:#050812;--panel:#0c1423;--panel2:#0a101c;--border:#1e2b43;--text:#e9eef7;--muted:#7f8da3;--good:#48e39b;--bad:#ff5d7a;--warn:#ffd166;--accent:#67b7ff;--shadow:0 18px 45px rgba(0,0,0,.28)}
 *{box-sizing:border-box}
-body{margin:0;background:radial-gradient(circle at top,#111c31 0,#070b14 45%,#050811 100%);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
-header{padding:28px 32px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-h1{margin:0;font-size:28px;letter-spacing:.08em}
-.sub{color:var(--muted);font-size:13px;margin-top:6px}
-.live{font-size:12px;color:var(--good);letter-spacing:.12em}
-main{padding:24px 32px;display:grid;gap:18px}
-.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
-.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 12px 35px rgba(0,0,0,.22)}
-.label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.1em}
-.value{font-size:28px;font-weight:700;margin-top:10px}
-.good{color:var(--good)}
-.bad{color:var(--bad)}
-.warn{color:var(--warn)}
-.section-title{font-size:14px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:12px}
-.events{display:grid;gap:10px}
-.event{padding:12px;border:1px solid var(--border);border-radius:10px;background:#0a111d;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
-.event strong{color:var(--accent)}
-.footer{color:var(--muted);font-size:12px}
-@media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:600px){header,main{padding:18px}.grid{grid-template-columns:1fr}}
+body{margin:0;background:radial-gradient(circle at 20% 0,#13213b 0,#070b14 42%,#04070d 100%);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+header{padding:24px 30px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:18px;position:sticky;top:0;background:rgba(5,8,18,.88);backdrop-filter:blur(10px);z-index:5}
+h1{margin:0;font-size:27px;letter-spacing:.11em}.sub{margin-top:6px;color:var(--muted);font-size:12px;letter-spacing:.08em}.live{font:700 12px/1 monospace;letter-spacing:.12em}.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+main{padding:24px 30px;display:grid;gap:18px;max-width:1500px;margin:auto}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:17px;padding:18px;box-shadow:var(--shadow)}
+.label,.section-title{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.12em}.value{font-size:28px;font-weight:800;margin-top:10px}
+.hero{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}.hero-card{padding:22px}.hero-title{font-size:14px;letter-spacing:.1em;color:var(--muted)}.hero-status{font-size:42px;font-weight:900;margin-top:6px;letter-spacing:.06em}.hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.pill{border:1px solid var(--border);padding:7px 10px;border-radius:999px;font-size:11px;color:var(--muted)}
+.btn{border:1px solid #8b233f;background:#210c16;color:#ffdce4;padding:11px 14px;border-radius:10px;font-weight:800;cursor:pointer}.btn:hover{filter:brightness(1.16)}.btn:disabled{opacity:.45;cursor:not-allowed}
+.cap-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:12px}.cap{border:1px solid var(--border);border-radius:11px;padding:11px;background:#08101a}.cap-name{font-size:11px;color:var(--muted)}.cap-value{margin-top:6px;font-weight:800}
+.layout{display:grid;grid-template-columns:1.3fr .7fr;gap:18px}.events{display:grid;gap:9px;max-height:430px;overflow:auto;margin-top:12px}.event{display:grid;grid-template-columns:115px 1fr auto;gap:10px;align-items:center;padding:11px;border:1px solid var(--border);border-radius:11px;background:#08101a;font:12px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace}.event-action{color:var(--accent);font-weight:700}.risk{font-weight:800}.event-time{color:var(--muted)}
+.matrix{display:grid;gap:10px;margin-top:12px}.row{display:grid;grid-template-columns:1.25fr .6fr .8fr;gap:8px;align-items:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.045)}.row:last-child{border-bottom:0}.small{font-size:12px}.footer{font-size:11px;color:var(--muted)}
+@media(max-width:1100px){.grid{grid-template-columns:repeat(2,1fr)}.hero,.layout{grid-template-columns:1fr}.cap-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:650px){header,main{padding:16px}.grid{grid-template-columns:1fr}.cap-grid{grid-template-columns:repeat(2,1fr)}.event{grid-template-columns:1fr}.hero-status{font-size:33px}}
 </style>
 </head>
 <body>
 <header>
-  <div>
-    <h1>WPWW // WAR ROOM</h1>
-    <div class="sub">LIVE OPERATIONS • SECURITY • VERIFICATION</div>
-  </div>
-  <div class="live" id="live">CONNECTING</div>
+  <div><h1>WPWW // WAR ROOM</h1><div class="sub">LIVE SECURITY • OPERATIONS • RESILIENCE • VERIFICATION</div></div>
+  <div id="live" class="live warn">● CONNECTING</div>
 </header>
-
 <main>
+  <section class="hero">
+    <div class="card hero-card">
+      <div class="hero-title">OVERALL POSTURE</div>
+      <div id="posture" class="hero-status warn">UNKNOWN</div>
+      <div class="hero-meta"><span id="eventCount" class="pill">0 recent events</span><span id="lastUpdate" class="pill">last update —</span></div>
+    </div>
+    <div class="card hero-card">
+      <div class="hero-title">CONTROLLED SIMULATOR</div>
+      <p class="small">Trigger one local defensive probe against Security Radar. This is intentionally bounded and disabled during a short cooldown.</p>
+      <button id="attackBtn" class="btn">⚠ SIMULATE DEFENSIVE PROBE</button>
+      <div id="attackResult" class="small" style="margin-top:10px;color:var(--muted)">Idle.</div>
+    </div>
+  </section>
+
   <section class="grid">
-    <div class="card"><div class="label">Security Radar Health</div><div class="value" id="health">UNKNOWN</div></div>
-    <div class="card"><div class="label">Radar API</div><div class="value" id="api">UNKNOWN</div></div>
-    <div class="card"><div class="label">Rate Limiting</div><div class="value" id="rate">UNKNOWN</div></div>
-    <div class="card"><div class="label">Structured Events</div><div class="value" id="eventsFlag">UNKNOWN</div></div>
+    <div class="card"><div class="label">Radar Health</div><div id="health" class="value warn">UNKNOWN</div></div>
+    <div class="card"><div class="label">Radar API</div><div id="api" class="value warn">UNKNOWN</div></div>
+    <div class="card"><div class="label">Rate Limiting</div><div id="rate" class="value warn">UNKNOWN</div></div>
+    <div class="card"><div class="label">Structured Events</div><div id="structured" class="value warn">UNKNOWN</div></div>
   </section>
 
   <section class="card">
-    <div class="section-title">Capabilities</div>
-    <div id="capabilities">Waiting for telemetry…</div>
+    <div class="section-title">DEFENSIVE CAPABILITY MATRIX</div>
+    <div id="capabilities" class="cap-grid"><div class="cap">Loading…</div></div>
   </section>
 
-  <section class="card">
-    <div class="section-title">Recent Security Events</div>
-    <div class="events" id="eventList">No events loaded.</div>
+  <section class="layout">
+    <div class="card">
+      <div class="section-title">LIVE SECURITY EVENT STREAM</div>
+      <div id="events" class="events"><div class="event">Waiting for telemetry…</div></div>
+    </div>
+    <div class="card">
+      <div class="section-title">SERVICE MATRIX</div>
+      <div class="matrix">
+        <div class="row"><strong class="small">Security Radar</strong><span id="serviceRadar" class="warn small">UNKNOWN</span><span class="small">/health</span></div>
+        <div class="row"><strong class="small">Event Feed</strong><span id="serviceEvents" class="warn small">UNKNOWN</span><span class="small">/api/events</span></div>
+        <div class="row"><strong class="small">Status Contract</strong><span id="serviceStatus" class="warn small">UNKNOWN</span><span class="small">/api/status</span></div>
+        <div class="row"><strong class="small">Frontend</strong><span class="good small">UP</span><span class="small">WPWW</span></div>
+      </div>
+    </div>
   </section>
 
-  <div class="footer" id="updated">Last update: —</div>
+  <div id="updated" class="footer">Last update: —</div>
 </main>
-
 <script>
-function stateText(value){
-  return value === true ? "ACTIVE" : value === false ? "INACTIVE" : "UNKNOWN";
+let previousEventIds=new Set();
+let audioContext=null;
+function flag(v){return v===true?"ACTIVE":v===false?"INACTIVE":"UNKNOWN"}
+function paint(id,v){const e=document.getElementById(id);e.textContent=v;e.className="value "+(v==="UP"||v==="ACTIVE"?"good":v==="DOWN"||v==="INACTIVE"?"bad":"warn")}
+function posture(data){
+  const c=data.radar.capabilities||{};
+  if(data.radar.health!=="UP"||data.radar.api!=="UP") return "DEGRADED";
+  const required=[c.controlledSimulation,c.ghostRoute,c.rateLimiting,c.structuredSecurityEvents,c.localEventFeed];
+  return required.every(Boolean)?"GUARDED":"PARTIAL";
 }
-function setState(id, value){
-  const el=document.getElementById(id);
-  el.textContent=value;
-  el.className="value "+(value==="ACTIVE"||value==="UP"?"good":value==="DOWN"||value==="INACTIVE"?"bad":"warn");
+function alarm(){
+  try{
+    audioContext ||= new (window.AudioContext||window.webkitAudioContext)();
+    const osc=audioContext.createOscillator(),gain=audioContext.createGain();
+    osc.type="sine";osc.frequency.setValueAtTime(620,audioContext.currentTime);osc.frequency.exponentialRampToValueAtTime(220,audioContext.currentTime+.22);
+    gain.gain.setValueAtTime(.08,audioContext.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audioContext.currentTime+.22);
+    osc.connect(gain);gain.connect(audioContext.destination);osc.start();osc.stop(audioContext.currentTime+.23);
+  }catch{}
 }
 async function refresh(){
   try{
     const r=await fetch("/api/warroom",{cache:"no-store"});
-    const data=await r.json();
-
-    setState("health",data.radar.health);
-    setState("api",data.radar.status);
-    setState("rate",stateText(data.radar.capabilities?.rateLimiting));
-    setState("eventsFlag",stateText(data.radar.capabilities?.structuredSecurityEvents));
-
-    const caps=data.radar.capabilities||{};
-    document.getElementById("capabilities").textContent =
-      Object.entries(caps).map(([k,v])=>`${k}: ${stateText(v)}`).join("  •  ");
-
-    const events=data.radar.events||[];
-    document.getElementById("eventList").innerHTML = events.length
-      ? events.map(e=>`<div class="event"><strong>${e.action||"event"}</strong> — ${e.timestampUtc||e.timestamp||"unknown"}</div>`).join("")
-      : "No events loaded.";
-
-    document.getElementById("updated").textContent=`Last update: ${data.timestampUtc}`;
-    document.getElementById("live").textContent="● LIVE";
+    if(!r.ok) throw new Error("warroom api "+r.status);
+    const d=await r.json();
+    paint("health",d.radar.health);paint("api",d.radar.api);
+    paint("rate",flag(d.radar.capabilities?.rateLimiting));paint("structured",flag(d.radar.capabilities?.structuredSecurityEvents));
+    document.getElementById("posture").textContent=posture(d);
+    document.getElementById("posture").className="hero-status "+(posture(d)==="GUARDED"?"good":posture(d)==="DEGRADED"?"bad":"warn");
+    const caps=d.radar.capabilities||{};
+    document.getElementById("capabilities").innerHTML=Object.entries(caps).map(([k,v])=>`<div class="cap"><div class="cap-name">${k}</div><div class="cap-value ${v===true?"good":v===false?"bad":"warn"}">${flag(v)}</div></div>`).join("");
+    const events=Array.isArray(d.radar.events)?d.radar.events:[];
+    document.getElementById("eventCount").textContent=`${events.length} recent events`;
+    document.getElementById("events").innerHTML=events.length?events.slice(0,30).map(e=>{
+      const id=e.eventId||e.id||`${e.timestampUtc}-${e.action}`; const risk=e.riskScore??e.severity??"—";
+      return `<div class="event"><span class="event-time">${e.timestampUtc||e.timestamp||"unknown"}</span><span><span class="event-action">${e.action||e.triggeredRoute||"event"}</span><br><span class="small">${e.userAgent||e.sourceIp||e.source||"security event"}</span></span><span class="risk">${risk}</span></div>`
+    }).join(""):"<div class='event'>No security events recorded.</div>";
+    const ids=new Set(events.map(e=>e.eventId||e.id));
+    if(previousEventIds.size && [...ids].some(id=>id && !previousEventIds.has(id))) alarm();
+    previousEventIds=ids;
+    document.getElementById("serviceRadar").textContent=d.radar.health;
+    document.getElementById("serviceRadar").className=(d.radar.health==="UP"?"good":"bad")+" small";
+    document.getElementById("serviceEvents").textContent=events.length?"UP":"EMPTY";
+    document.getElementById("serviceEvents").className=(events.length?"good":"warn")+" small";
+    document.getElementById("serviceStatus").textContent=d.radar.api;
+    document.getElementById("serviceStatus").className=(d.radar.api==="UP"?"good":"bad")+" small";
+    document.getElementById("live").textContent="● LIVE";document.getElementById("live").className="live good";
+    document.getElementById("lastUpdate").textContent=new Date().toLocaleTimeString();
+    document.getElementById("updated").textContent=`Last update: ${d.timestampUtc}`;
   }catch(error){
-    document.getElementById("live").textContent="● OFFLINE";
+    document.getElementById("live").textContent="● OFFLINE";document.getElementById("live").className="live bad";
+    ["health","api","rate","structured"].forEach(id=>paint(id,"UNKNOWN"));
+    document.getElementById("posture").textContent="UNKNOWN";document.getElementById("posture").className="hero-status warn";
   }
 }
-refresh();
-setInterval(refresh,5000);
+async function simulate(){
+  const btn=document.getElementById("attackBtn"),out=document.getElementById("attackResult");
+  btn.disabled=true;out.textContent="Running controlled defensive probe…";
+  try{
+    const r=await fetch("/api/simulate",{method:"POST"});
+    const body=await r.json().catch(()=>({}));
+    out.textContent=`Probe response: HTTP ${r.status} ${body.action||""}`;
+    setTimeout(refresh,250);
+  }catch(e){out.textContent=`Probe failed: ${e.message}`}
+  finally{setTimeout(()=>btn.disabled=false,3000)}
+}
+document.getElementById("attackBtn").addEventListener("click",simulate);
+refresh();setInterval(refresh,3000);
 </script>
 </body>
 </html>
