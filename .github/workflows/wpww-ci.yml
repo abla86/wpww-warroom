@@ -42,10 +42,14 @@ jobs:
               import learning_matrix
               import module_control
               import auto_healer
+              import capability_registry
 
               assert learning_matrix.summary()['total'] >= 1
               assert module_control.snapshot()['control']['requireExplicitRun'] is True
               assert auto_healer.AutoHealer().snapshot()['enabled'] is True
+              capabilities = capability_registry.snapshot()
+              assert capabilities['counts']['plugins'] >= 1
+              assert capabilities['counts']['tools'] >= 1
 
           print('Module smoke tests passed')
           PY
@@ -85,13 +89,22 @@ jobs:
           curl --fail --silent http://127.0.0.1:8080/ > /tmp/root.json
           curl --fail --silent http://127.0.0.1:8080/api/warroom > /tmp/warroom.json
           curl --fail --silent http://127.0.0.1:8080/api/modules > /tmp/modules.json
+          curl --fail --silent http://127.0.0.1:8080/api/capabilities > /tmp/capabilities.json
+          curl --fail --silent http://127.0.0.1:8080/api/telemetry > /tmp/telemetry.json
+          curl --fail --silent http://127.0.0.1:8080/api/tools > /tmp/tools.json
+          curl --fail --silent http://127.0.0.1:8080/api/databases > /tmp/databases.json
+          curl --fail --silent http://127.0.0.1:8080/api/battle > /tmp/battle.json
           curl --fail --silent http://127.0.0.1:8080/api/report.json > /tmp/report.json
           python - <<'PY'
           import json
-          for path in ("/tmp/root.json", "/tmp/warroom.json", "/tmp/modules.json", "/tmp/report.json"):
-              with open(path, encoding="utf-8") as f:
+          for path in (
+              '/tmp/root.json', '/tmp/warroom.json', '/tmp/modules.json',
+              '/tmp/capabilities.json', '/tmp/telemetry.json', '/tmp/tools.json',
+              '/tmp/databases.json', '/tmp/battle.json', '/tmp/report.json'
+          ):
+              with open(path, encoding='utf-8') as f:
                   json.load(f)
-          print("Core JSON endpoints parsed successfully")
+          print('Core JSON endpoints parsed successfully')
           PY
 
       - name: Verify deterministic scenarios
@@ -138,6 +151,8 @@ jobs:
           assert 'events' in report
           assert 'files' in report
           assert 'modules' in report
+          assert 'telemetry' in report
+          assert 'capabilities' in report
           assert report['summary']['totalEvents'] >= 1
           print('Report structure and event content verified')
           PY
@@ -146,6 +161,33 @@ jobs:
           curl --fail --silent http://127.0.0.1:8080/api/report.html > /tmp/report.html
           test -s /tmp/report.csv
           test -s /tmp/report.html
+
+      - name: Verify telemetry contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          with open('/tmp/telemetry.json', encoding='utf-8') as f:
+              telemetry = json.load(f)
+          assert telemetry.get('evidenceStatus') in {'OBSERVED', 'NOT_AVAILABLE'}
+          assert 'timestampUtc' in telemetry
+          print('Telemetry contract verified')
+          PY
+
+      - name: Verify battle lab contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          with open('/tmp/battle.json', encoding='utf-8') as f:
+              battle = json.load(f)
+          assert isinstance(battle.get('nodes'), list)
+          assert any(n.get('side') == 'red' for n in battle['nodes'])
+          assert any(n.get('side') == 'blue' for n in battle['nodes'])
+          print('BattleLab contract verified')
+          PY
 
       - name: Verify event feed integrity
         shell: bash
@@ -188,7 +230,6 @@ jobs:
           PY
 
       - name: Verify master control isolation
-        shell: bash
         env:
           WPWW_MASTER_KEY: ci-test-master-secret
           WPWW_DATA_DIR: /tmp/wpww-master-ci
