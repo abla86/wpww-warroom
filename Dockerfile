@@ -4,6 +4,7 @@ WORKDIR /app
 
 RUN groupadd --system wpww && useradd --system --gid wpww --create-home --home-dir /home/wpww wpww
 
+COPY wpww_app.py ./wpww_app.py
 COPY lab ./lab
 COPY public ./public
 COPY plugins ./plugins
@@ -22,4 +23,4 @@ EXPOSE 8080
 
 USER wpww
 
-CMD ["python", "-u", "lab/wpww_unit.py"]
+CMD ["python", "-u", "wpww_app.py"]
