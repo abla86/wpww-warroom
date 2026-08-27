@@ -20,7 +20,12 @@ async function get(path, options = {}) {
   }
 }
 
+app.use(express.json());
 app.use(express.static("public"));
+
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ status: "Healthy", service: "WPWW War Room" });
+});
 
 app.get("/api/warroom", async (_req, res) => {
   const [health, status, events] = await Promise.all([
@@ -41,7 +46,6 @@ app.get("/api/warroom", async (_req, res) => {
 });
 
 app.post("/api/simulate", async (_req, res) => {
-  // Intentionally bounded local demonstration. No arbitrary target is accepted.
   const result = await get(simulatePath, {
     method: "GET",
     headers: {
@@ -54,7 +58,7 @@ app.post("/api/simulate", async (_req, res) => {
     target: "Security Radar controlled route",
     upstreamStatus: result.status,
     upstreamReached: result.status !== 0,
-    eventProduced: result.status === 200 || result.status === 404 || result.status === 418 || result.status === 429,
+    eventProduced: [200, 404, 418, 429].includes(result.status),
   });
 });
 
