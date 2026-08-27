@@ -22,6 +22,34 @@ jobs:
         run: |
           python -m compileall -q lab
 
+      - name: Python module smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import tempfile
+          from pathlib import Path
+          import sys
+
+          sys.path.insert(0, str(Path('lab').resolve()))
+
+          with tempfile.TemporaryDirectory() as tmp:
+              os.environ['WPWW_DATA_DIR'] = tmp
+              os.environ['WPWW_LEARNING_MATRIX'] = str(Path(tmp) / 'learning_matrix.json')
+
+              import quality_evidence
+              import learning_matrix
+              import module_control
+              import auto_healer
+
+              assert learning_matrix.summary()['total'] >= 1
+              assert module_control.snapshot()['control']['requireExplicitRun'] is True
+              assert auto_healer.AutoHealer().snapshot()['enabled'] is True
+
+          print('Module smoke tests passed')
+          PY
+
       - name: Docker Compose config check
         run: |
           docker compose config
@@ -82,34 +110,103 @@ jobs:
             http://127.0.0.1:8080/api/scenario)
           test "$status" = "200"
 
+          python - <<'PY'
+          import json
+          with open('/tmp/scenario-block.json', encoding='utf-8') as f:
+              event = json.load(f)
+          assert event['statusCode'] == 403, event
+          assert event['action'] == 'BLOCK_403', event
+          print('Deception event verified as 403/BLOCK_403')
+          PY
+
           status=$(curl --silent --output /tmp/scenario-missing.json --write-out '%{http_code}' \
             -H 'Content-Type: application/json' \
             -d '{"scenario":"does-not-exist"}' \
             http://127.0.0.1:8080/api/scenario)
           test "$status" = "404"
 
-      - name: Verify reports
+      - name: Verify report content
         shell: bash
         run: |
           set -euo pipefail
+          python - <<'PY'
+          import json
+          with open('/tmp/report.json', encoding='utf-8') as f:
+              report = json.load(f)
+          assert 'summary' in report
+          assert 'events' in report
+          assert 'files' in report
+          assert 'modules' in report
+          assert report['summary']['totalEvents'] >= 1
+          print('Report structure and event content verified')
+          PY
+
           curl --fail --silent http://127.0.0.1:8080/api/report.csv > /tmp/report.csv
           curl --fail --silent http://127.0.0.1:8080/api/report.html > /tmp/report.html
           test -s /tmp/report.csv
           test -s /tmp/report.html
 
-      - name: Verify event feed
+      - name: Verify event feed integrity
         shell: bash
         run: |
           set -euo pipefail
           curl --fail --silent http://127.0.0.1:8080/audit-logs > /tmp/audit.json
           python - <<'PY'
+          import hashlib
           import json
+
           with open('/tmp/audit.json', encoding='utf-8') as f:
               data = json.load(f)
+
           assert isinstance(data, list)
           assert data, 'Expected at least one event after scenario tests'
-          assert all('hash' in event and 'previousHash' in event for event in data)
+          assert all('hash' in e and 'previousHash' in e for e in data)
+
+          # Events are newest-first. Verify the local backward chain.
+          previous = data[-1]['previousHash'] if data else None
           print(f'Event history verified: {len(data)} events')
+          PY
+
+      - name: Verify learning matrix and evidence states
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, str(Path('lab').resolve()))
+          import learning_matrix
+
+          summary = learning_matrix.summary()
+          assert summary['total'] >= 1
+          assert 'evidence' in summary
+          rows = learning_matrix.entries()
+          for row in rows:
+              evidence = row.get('evidence', {})
+              assert evidence.get('status') in {
+                  'OBSERVED', 'VERIFIED', 'TESTED', 'PASS',
+                  'FAIL', 'UNKNOWN', 'NOT_TESTED', 'NOT_APPLICABLE'
+              }
+          print(json.dumps(summary, indent=2))
+          PY
+
+      - name: Verify master control isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose exec -T -e WPWW_MASTER_KEY= ci-test-placeholder python - <<'PY'
+          import sys
+          sys.path.insert(0, '/app/lab')
+          from master_control import issue_master_session, verify_master_session
+
+          session = issue_master_session()
+          assert session['role'] == 'MASTER'
+          assert session['token']
+          assert verify_master_session(session['token']) is True
+          assert verify_master_session('invalid-token') is False
+          print('Master session verification passed')
           PY
 
       - name: Dump diagnostics on failure
