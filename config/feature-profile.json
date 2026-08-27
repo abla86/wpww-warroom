@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "minimal": ["core"],
+    "operations": ["core","telemetry","history","reports","alerts"],
+    "security-lab": ["core","telemetry","simulation","evolution","alerts","history","reports"],
+    "data-lab": ["core","history","reports","postgresql","mysql","mariadb","sqlserver","mongodb","redis","sqlite"],
+    "full-lab": ["core","telemetry","simulation","evolution","alerts","history","reports","postgresql","mysql","mariadb","sqlserver","mongodb","redis","sqlite","zap","trivy","semgrep","gitleaks","prometheus","grafana","otel","loki","elasticsearch","kibana","jaeger","pytest","playwright"]
+  },
+  "default": "minimal",
+  "principles": {
+    "optInModules": true,
+    "noSecretsInGit": true,
+    "noExternalTargetingByDefault": true,
+    "unknownStateIsValid": true
+  }
+}
