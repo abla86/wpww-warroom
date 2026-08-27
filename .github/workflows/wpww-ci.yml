@@ -1,0 +1,123 @@
+name: WPWW WarRoom CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python syntax check
+        run: |
+          python -m compileall -q lab
+
+      - name: Docker Compose config check
+        run: |
+          docker compose config
+
+      - name: Build WPWW
+        run: |
+          docker compose build --pull
+
+      - name: Start WPWW
+        run: |
+          docker compose up -d
+
+      - name: Wait for health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/healthz > /tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "WPWW healthcheck did not become ready"
+          docker compose ps
+          docker compose logs --no-color
+          exit 1
+
+      - name: Verify core API
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent http://127.0.0.1:8080/ > /tmp/root.json
+          curl --fail --silent http://127.0.0.1:8080/api/warroom > /tmp/warroom.json
+          curl --fail --silent http://127.0.0.1:8080/api/modules > /tmp/modules.json
+          curl --fail --silent http://127.0.0.1:8080/api/report.json > /tmp/report.json
+          python - <<'PY'
+          import json
+          for path in ("/tmp/root.json", "/tmp/warroom.json", "/tmp/modules.json", "/tmp/report.json"):
+              with open(path, encoding="utf-8") as f:
+                  json.load(f)
+          print("Core JSON endpoints parsed successfully")
+          PY
+
+      - name: Verify deterministic scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --output /tmp/scenario.json --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d '{"scenario":"clean"}' \
+            http://127.0.0.1:8080/api/scenario)
+          test "$status" = "200"
+
+          status=$(curl --silent --output /tmp/scenario-block.json --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d '{"scenario":"deception"}' \
+            http://127.0.0.1:8080/api/scenario)
+          test "$status" = "200"
+
+          status=$(curl --silent --output /tmp/scenario-missing.json --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d '{"scenario":"does-not-exist"}' \
+            http://127.0.0.1:8080/api/scenario)
+          test "$status" = "404"
+
+      - name: Verify reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent http://127.0.0.1:8080/api/report.csv > /tmp/report.csv
+          curl --fail --silent http://127.0.0.1:8080/api/report.html > /tmp/report.html
+          test -s /tmp/report.csv
+          test -s /tmp/report.html
+
+      - name: Verify event feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent http://127.0.0.1:8080/audit-logs > /tmp/audit.json
+          python - <<'PY'
+          import json
+          with open('/tmp/audit.json', encoding='utf-8') as f:
+              data = json.load(f)
+          assert isinstance(data, list)
+          assert data, 'Expected at least one event after scenario tests'
+          assert all('hash' in event and 'previousHash' in event for event in data)
+          print(f'Event history verified: {len(data)} events')
+          PY
+
+      - name: Dump diagnostics on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-color
+
+      - name: Shutdown
+        if: always()
+        run: docker compose down -v
