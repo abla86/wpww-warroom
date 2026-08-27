@@ -1,0 +1,9 @@
+﻿services:
+  wpww-warroom:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      RADAR_URL: "${RADAR_URL:-http://host.docker.internal:5080}"
+    restart: unless-stopped

@@ -1,0 +1,112 @@
+﻿<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WPWW War Room</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg:#070b14;
+  --panel:#101827;
+  --panel2:#0c1320;
+  --border:#223047;
+  --text:#e6edf7;
+  --muted:#8190a5;
+  --good:#42e695;
+  --bad:#ff5577;
+  --warn:#ffd166;
+  --accent:#60a5fa;
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at top,#111c31 0,#070b14 45%,#050811 100%);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+header{padding:28px 32px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+h1{margin:0;font-size:28px;letter-spacing:.08em}
+.sub{color:var(--muted);font-size:13px;margin-top:6px}
+.live{font-size:12px;color:var(--good);letter-spacing:.12em}
+main{padding:24px 32px;display:grid;gap:18px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 12px 35px rgba(0,0,0,.22)}
+.label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.1em}
+.value{font-size:28px;font-weight:700;margin-top:10px}
+.good{color:var(--good)}
+.bad{color:var(--bad)}
+.warn{color:var(--warn)}
+.section-title{font-size:14px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:12px}
+.events{display:grid;gap:10px}
+.event{padding:12px;border:1px solid var(--border);border-radius:10px;background:#0a111d;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+.event strong{color:var(--accent)}
+.footer{color:var(--muted);font-size:12px}
+@media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){header,main{padding:18px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>WPWW // WAR ROOM</h1>
+    <div class="sub">LIVE OPERATIONS • SECURITY • VERIFICATION</div>
+  </div>
+  <div class="live" id="live">CONNECTING</div>
+</header>
+
+<main>
+  <section class="grid">
+    <div class="card"><div class="label">Security Radar Health</div><div class="value" id="health">UNKNOWN</div></div>
+    <div class="card"><div class="label">Radar API</div><div class="value" id="api">UNKNOWN</div></div>
+    <div class="card"><div class="label">Rate Limiting</div><div class="value" id="rate">UNKNOWN</div></div>
+    <div class="card"><div class="label">Structured Events</div><div class="value" id="eventsFlag">UNKNOWN</div></div>
+  </section>
+
+  <section class="card">
+    <div class="section-title">Capabilities</div>
+    <div id="capabilities">Waiting for telemetry…</div>
+  </section>
+
+  <section class="card">
+    <div class="section-title">Recent Security Events</div>
+    <div class="events" id="eventList">No events loaded.</div>
+  </section>
+
+  <div class="footer" id="updated">Last update: —</div>
+</main>
+
+<script>
+function stateText(value){
+  return value === true ? "ACTIVE" : value === false ? "INACTIVE" : "UNKNOWN";
+}
+function setState(id, value){
+  const el=document.getElementById(id);
+  el.textContent=value;
+  el.className="value "+(value==="ACTIVE"||value==="UP"?"good":value==="DOWN"||value==="INACTIVE"?"bad":"warn");
+}
+async function refresh(){
+  try{
+    const r=await fetch("/api/warroom",{cache:"no-store"});
+    const data=await r.json();
+
+    setState("health",data.radar.health);
+    setState("api",data.radar.status);
+    setState("rate",stateText(data.radar.capabilities?.rateLimiting));
+    setState("eventsFlag",stateText(data.radar.capabilities?.structuredSecurityEvents));
+
+    const caps=data.radar.capabilities||{};
+    document.getElementById("capabilities").textContent =
+      Object.entries(caps).map(([k,v])=>`${k}: ${stateText(v)}`).join("  •  ");
+
+    const events=data.radar.events||[];
+    document.getElementById("eventList").innerHTML = events.length
+      ? events.map(e=>`<div class="event"><strong>${e.action||"event"}</strong> — ${e.timestampUtc||e.timestamp||"unknown"}</div>`).join("")
+      : "No events loaded.";
+
+    document.getElementById("updated").textContent=`Last update: ${data.timestampUtc}`;
+    document.getElementById("live").textContent="● LIVE";
+  }catch(error){
+    document.getElementById("live").textContent="● OFFLINE";
+  }
+}
+refresh();
+setInterval(refresh,5000);
+</script>
+</body>
+</html>
