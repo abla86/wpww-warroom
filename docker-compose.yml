@@ -11,6 +11,10 @@ services:
       WPWW_ENABLE_TELEMETRY: "${WPWW_ENABLE_TELEMETRY:-false}"
       WPWW_ENABLE_CI: "${WPWW_ENABLE_CI:-false}"
       WPWW_ENABLE_AUDIO: "${WPWW_ENABLE_AUDIO:-true}"
+      WPWW_ENABLE_HISTORY: "${WPWW_ENABLE_HISTORY:-true}"
+      WPWW_ENABLE_ALERTS: "${WPWW_ENABLE_ALERTS:-true}"
+      WPWW_ALERT_COOLDOWN_MS: "${WPWW_ALERT_COOLDOWN_MS:-30000}"
+      WPWW_WEBHOOK_URL: "${WPWW_WEBHOOK_URL:-}"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 10s
