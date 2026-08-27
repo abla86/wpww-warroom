@@ -1,4 +1,4 @@
-﻿services:
+services:
   wpww-warroom:
     build: .
     ports:
@@ -6,4 +6,25 @@
     environment:
       PORT: "8080"
       RADAR_URL: "${RADAR_URL:-http://host.docker.internal:5080}"
+      SIMULATE_PATH: "${SIMULATE_PATH:-/api/v1/internal/legacy-db-dump}"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  network-sniffer:
+    profiles: ["telemetry"]
+    build:
+      context: ./network-sniffer
+    environment:
+      WPWW_URL: "http://wpww-warroom:8080/healthz"
+      RADAR_URL: "${RADAR_URL:-http://host.docker.internal:5080/health}"
+      SNIFFER_INTERVAL: "10"
+      SNIFFER_TIMEOUT: "2"
+    depends_on:
+      wpww-warroom:
+        condition: service_healthy
     restart: unless-stopped
