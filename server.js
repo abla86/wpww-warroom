@@ -1,11 +1,18 @@
 const express = require("express");
 
 const app = express();
-const port = process.env.PORT || 8080;
+const port = Number(process.env.PORT || 8080);
 const radar = process.env.RADAR_URL || "http://host.docker.internal:5080";
 const simulatePath = process.env.SIMULATE_PATH || "/api/v1/internal/legacy-db-dump";
+const allowedSimulationPaths = new Set(["/api/v1/internal/legacy-db-dump"]);
 
-async function get(path, options = {}) {
+function safeSimulationPath() {
+  return allowedSimulationPaths.has(simulatePath)
+    ? simulatePath
+    : "/api/v1/internal/legacy-db-dump";
+}
+
+async function requestUpstream(path, options = {}) {
   try {
     const response = await fetch(`${radar}${path}`, {
       ...options,
@@ -20,37 +27,41 @@ async function get(path, options = {}) {
   }
 }
 
-app.use(express.json());
+app.disable("x-powered-by");
+app.use(express.json({ limit: "32kb" }));
 app.use(express.static("public"));
 
 app.get("/healthz", (_req, res) => {
-  res.status(200).json({ status: "Healthy", service: "WPWW War Room" });
+  res.status(200).json({
+    status: "Healthy",
+    service: "WPWW War Room",
+    timestampUtc: new Date().toISOString(),
+  });
 });
 
 app.get("/api/warroom", async (_req, res) => {
   const [health, status, events] = await Promise.all([
-    get("/health"),
-    get("/api/status"),
-    get("/api/events"),
+    requestUpstream("/health"),
+    requestUpstream("/api/status"),
+    requestUpstream("/api/events"),
   ]);
 
   res.json({
     timestampUtc: new Date().toISOString(),
     radar: {
       health: health.status === 200 ? "UP" : health.status === 0 ? "UNKNOWN" : "DOWN",
-      api: status.ok ? "UP" : status.status === 0 ? "UNKNOWN" : "DOWN",
-      capabilities: status.body,
+      api: status.status === 0 ? "UNKNOWN" : status.ok ? "UP" : "DOWN",
+      capabilities: status.body && typeof status.body === "object" ? status.body : {},
       events: Array.isArray(events.body) ? events.body.slice(0, 30) : [],
     },
   });
 });
 
 app.post("/api/simulate", async (_req, res) => {
-  const result = await get(simulatePath, {
+  const path = safeSimulationPath();
+  const result = await requestUpstream(path, {
     method: "GET",
-    headers: {
-      "User-Agent": "WPWW-Defensive-Simulator/1.0",
-    },
+    headers: { "User-Agent": "WPWW-Defensive-Simulator/1.0" },
   });
 
   res.status(200).json({
@@ -58,8 +69,13 @@ app.post("/api/simulate", async (_req, res) => {
     target: "Security Radar controlled route",
     upstreamStatus: result.status,
     upstreamReached: result.status !== 0,
-    eventProduced: [200, 404, 418, 429].includes(result.status),
+    eventProduced: [200, 403, 418, 429].includes(result.status),
+    simulationPath: path,
   });
+});
+
+app.use((_req, res) => {
+  res.status(404).json({ error: "Route not found", code: 404 });
 });
 
 app.listen(port, () => {
