@@ -8,48 +8,42 @@ from urllib.request import Request, urlopen
 BASE_URL = os.getenv("WPWW_URL", "http://127.0.0.1:8080")
 
 
-def get(path: str):
-    req = Request(f"{BASE_URL}{path}")
-    with urlopen(req, timeout=5) as response:
-        raw = response.read().decode("utf-8")
+def request(path: str, method: str = "GET") -> tuple[int, object]:
+    req = Request(f"{BASE_URL}{path}", method=method)
+    try:
+        with urlopen(req, timeout=8) as response:
+            raw = response.read().decode("utf-8")
+            try:
+                body = json.loads(raw)
+            except json.JSONDecodeError:
+                body = raw
+            return response.status, body
+    except HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
         try:
             body = json.loads(raw)
         except json.JSONDecodeError:
             body = raw
-        return response.status, body
+        return exc.code, body
 
 
-def post(path: str):
-    req = Request(f"{BASE_URL}{path}", method="POST")
-    with urlopen(req, timeout=8) as response:
-        raw = response.read().decode("utf-8")
-        try:
-            body = json.loads(raw)
-        except json.JSONDecodeError:
-            body = raw
-        return response.status, body
-
-
-def wait_for(path: str, attempts: int = 30) -> None:
+def wait_for_health(attempts: int = 30) -> None:
     for _ in range(attempts):
         try:
-            status, _ = get(path)
+            status, _ = request("/healthz")
             if status == 200:
                 return
-        except Exception:
+        except (URLError, OSError, TimeoutError):
             pass
         time.sleep(1)
-    raise RuntimeError(f"Endpoint did not become ready: {path}")
+    raise RuntimeError("WPWW /healthz did not become ready")
 
 
-def check(name, fn):
+def check(name: str, fn) -> bool:
     try:
         ok = bool(fn())
-    except (HTTPError, URLError, TimeoutError, ValueError, RuntimeError, OSError) as exc:
-        print(f"[FAIL] {name}: {exc}")
-        return False
     except Exception as exc:
-        print(f"[FAIL] {name}: unexpected error: {exc}")
+        print(f"[FAIL] {name}: {exc}")
         return False
     print(f"[{'PASS' if ok else 'FAIL'}] {name}")
     return ok
@@ -57,33 +51,44 @@ def check(name, fn):
 
 def main() -> int:
     print(f"WPWW E2E verification: {BASE_URL}")
-    wait_for("/healthz")
+    wait_for_health()
+
+    frontend_status, _ = request("/")
+    health_status, health_body = request("/healthz")
+    war_status, war_body = request("/api/warroom")
+    simulation_status, simulation_body = request("/api/simulate", "POST")
 
     checks = [
-        ("frontend-load", lambda: get("/")[0] == 200),
-        ("health-contract", lambda: get("/healthz")[0] == 200),
+        ("frontend-load", frontend_status == 200),
+        ("health-contract", health_status == 200 and isinstance(health_body, dict)),
         (
-            "warroom-json-contract",
-            lambda: (
-                get("/api/warroom")[0] == 200
-                and isinstance(get("/api/warroom")[1], dict)
-                and "radar" in get("/api/warroom")[1]
-            ),
+            "warroom-contract",
+            war_status == 200
+            and isinstance(war_body, dict)
+            and isinstance(war_body.get("radar"), dict)
+            and "health" in war_body["radar"]
+            and "api" in war_body["radar"],
         ),
         (
-            "warroom-events-array",
-            lambda: isinstance(get("/api/warroom")[1].get("radar", {}).get("events", []), list),
+            "event-feed-shape",
+            war_status == 200
+            and isinstance(war_body, dict)
+            and isinstance(war_body.get("radar", {}).get("events"), list),
         ),
         (
             "simulator-contract",
-            lambda: (
-                post("/api/simulate")[0] == 200
-                and post("/api/simulate")[1].get("action") == "defensive-probe"
-            ),
+            simulation_status == 200
+            and isinstance(simulation_body, dict)
+            and simulation_body.get("action") == "defensive-probe"
+            and isinstance(simulation_body.get("upstreamStatus"), int),
         ),
     ]
 
-    passed = sum(check(name, fn) for name, fn in checks)
+    passed = 0
+    for name, condition in checks:
+        if check(name, lambda condition=condition: condition):
+            passed += 1
+
     total = len(checks)
     print(f"{passed}/{total} checks passed")
     return 0 if passed == total else 1
