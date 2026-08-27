@@ -21,6 +21,7 @@ services:
       WPWW_ENABLE_PLUGIN_LAB: "${WPWW_ENABLE_PLUGIN_LAB:-true}"
       WPWW_MASTER_KEY: "${WPWW_MASTER_KEY:-}"
       WPWW_MASTER_SESSION_TTL: "${WPWW_MASTER_SESSION_TTL:-3600}"
+      WPWW_MASTER_KEY_FILE: "/run/secrets/wpww_master_key"
       WPWW_RESTART_POLICY: "unless-stopped"
       WPWW_HEAL_INTERVAL: "${WPWW_HEAL_INTERVAL:-20}"
       WPWW_MAX_EVENT_LOG_BYTES: "${WPWW_MAX_EVENT_LOG_BYTES:-20971520}"
@@ -28,6 +29,8 @@ services:
     volumes:
       - wpww_data:/data
       - ./lab/user_files:/app/user_files
+    secrets:
+      - wpww_master_key
     read_only: true
     tmpfs:
       - /tmp
@@ -45,3 +48,7 @@ services:
 
 volumes:
   wpww_data:
+
+secrets:
+  wpww_master_key:
+    file: ${WPWW_MASTER_KEY_FILE:-./secrets/wpww_master_key.txt}
