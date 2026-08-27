@@ -28,3 +28,15 @@ services:
       wpww-warroom:
         condition: service_healthy
     restart: unless-stopped
+
+  threat-simulator:
+    profiles: ["simulation"]
+    build:
+      context: ./tools
+    environment:
+      WPWW_URL: "http://wpww-warroom:8080"
+      SIMULATOR_INTERVAL: "15"
+    depends_on:
+      wpww-warroom:
+        condition: service_healthy
+    restart: unless-stopped
