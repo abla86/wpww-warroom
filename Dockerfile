@@ -1,9 +1,14 @@
-﻿FROM node:22-alpine
+FROM python:3.11-slim
 WORKDIR /app
-COPY package.json .
-RUN npm install --omit=dev
-COPY server.js .
+COPY lab ./lab
 COPY public ./public
+COPY plugins ./plugins
+COPY config ./config
+RUN pip install --no-cache-dir requests
+ENV PYTHONUNBUFFERED=1 \
+    WPWW_LAB_PORT=8080 \
+    WPWW_DATA_DIR=/data \
+    WPWW_USER_FILES_DIR=/data/user_files
+RUN mkdir -p /data/user_files
 EXPOSE 8080
-USER node
-CMD ["node","server.js"]
+CMD ["python", "-u", "lab/wpww_unit.py"]
