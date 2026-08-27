@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir requests
 ENV PYTHONUNBUFFERED=1 \
     WPWW_LAB_PORT=8080 \
     WPWW_DATA_DIR=/data \
-    WPWW_USER_FILES_DIR=/data/user_files
-RUN mkdir -p /data/user_files
+    WPWW_USER_FILES_DIR=/app/user_files
+RUN mkdir -p /data /app/user_files
 EXPOSE 8080
 CMD ["python", "-u", "lab/wpww_unit.py"]
