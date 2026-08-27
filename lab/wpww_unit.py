@@ -20,6 +20,7 @@ USER_FILES_DIR = Path(os.getenv("WPWW_USER_FILES_DIR", str(DATA_DIR / "user_file
 EVENT_LOG = DATA_DIR / "wpww_events.jsonl"
 MAX_EVENTS = int(os.getenv("WPWW_MAX_EVENTS", "1000"))
 PERSONALITY = os.getenv("WPWW_PERSONALITY", "cozy")
+TELEMETRY_ENABLED = os.getenv("WPWW_ENABLE_TELEMETRY", "true").lower() == "true"
 
 FORBIDDEN_KEYWORDS = [
     "BAD_ACTOR", "DROP TABLE", "OR 1=1", "<script>", "B64:",
@@ -41,7 +42,7 @@ SCENARIOS = [
 
 FLAGS = {
     "simulator": os.getenv("WPWW_ENABLE_SIMULATOR", "true").lower() == "true",
-    "telemetry": os.getenv("WPWW_ENABLE_TELEMETRY", "true").lower() == "true",
+    "telemetry": TELEMETRY_ENABLED,
     "audio": os.getenv("WPWW_ENABLE_AUDIO", "true").lower() == "true",
     "history": os.getenv("WPWW_ENABLE_HISTORY", "true").lower() == "true",
     "alerts": os.getenv("WPWW_ENABLE_ALERTS", "true").lower() == "true",
@@ -203,6 +204,16 @@ def _module_update(module_id: str, payload: dict) -> dict:
     return set_module(module_id, **kwargs)
 
 
+def _telemetry() -> dict:
+    if not TELEMETRY_ENABLED:
+        return {"status": "NOT_APPLICABLE", "enabled": False}
+    try:
+        from telemetry_collector import snapshot
+        return snapshot()
+    except Exception as exc:
+        return {"status": "UNKNOWN", "enabled": True, "error": str(exc)}
+
+
 def personality_message(event: dict | None = None) -> str:
     if PERSONALITY != "cozy":
         return "WPWW operational."
@@ -256,6 +267,7 @@ def make_report() -> dict:
         },
         "files": file_audit(),
         "modules": _module_snapshot(),
+        "telemetry": _telemetry(),
         "events": events,
     }
 
@@ -327,18 +339,20 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             return self._json(200, {"service": "WPWW Unified War Room", "status": "UP", "message": personality_message()})
         if path == "/healthz":
-            return self._json(200, {"status": "Healthy", "service": "WPWW Unified War Room", "mode": MODE["value"], "lockdown": LOCKDOWN["value"], "modules": _module_snapshot()})
+            return self._json(200, {"status": "Healthy", "service": "WPWW Unified War Room", "mode": MODE["value"], "lockdown": LOCKDOWN["value"], "modules": _module_snapshot(), "telemetry": _telemetry()})
         if path == "/audit-logs":
             return self._json(200, STORE.recent())
         if path == "/api/warroom":
             return self._json(200, {
                 "timestampUtc": utc_now(),
                 "wpww": {"mode": MODE["value"], "lockdown": LOCKDOWN["value"], "flags": FLAGS, "alerts": ALERT},
-                "message": personality_message(), "files": file_audit(), "modules": _module_snapshot(),
+                "message": personality_message(), "files": file_audit(), "modules": _module_snapshot(), "telemetry": _telemetry(),
                 "radar": {"health": "UP", "api": "UP", "events": STORE.recent(50)},
             })
         if path == "/api/modules":
             return self._json(200, _module_snapshot())
+        if path == "/api/telemetry":
+            return self._json(200, _telemetry())
         if path == "/api/incidents":
             return self._json(200, {"mode": MODE["value"], "incidents": STORE.recent(100)})
         if path == "/api/files":
@@ -358,6 +372,7 @@ class Handler(BaseHTTPRequestHandler):
                 "Scenario: POST /api/scenario\n"
                 "Evolution: POST /api/evolution\n"
                 "Modules: GET /api/modules, POST /api/modules/<id>\n"
+                "Telemetry: GET /api/telemetry\n"
                 "Files: GET /api/files, POST /api/files/baseline\n"
                 "Reports: /api/report.json /api/report.csv /api/report.html\n"
                 "Incidents: /api/incidents\n"
@@ -429,9 +444,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/files/baseline":
             baseline_path = DATA_DIR / "user_files_baseline.json"
             baseline_path.parent.mkdir(parents=True, exist_ok=True)
-            baseline_path.write_text(json.dumps(file_inventory(), indent=2, ensure_ascii=False), encoding="utf-8")
-            STORE.add(mode=MODE["value"], source="file-audit", type_="FILE_BASELINE", severity="INFO", action="BASELINE_UPDATED", status=200, details={"path": str(baseline_path)})
-            return self._json(200, {"status": "BASELINE_UPDATED", "files": file_inventory()})
+            inventory = file_inventory()
+            baseline_path.write_text(json.dumps(inventory, indent=2, ensure_ascii=False), encoding="utf-8")
+            STORE.add(mode=MODE["value"], source="file-audit", type_="FILE_BASELINE", severity="INFO", action="BASELINE_UPDATED", status=200, details={"path": str(baseline_path), "fileCount": len(inventory)})
+            return self._json(200, {"status": "BASELINE_UPDATED", "files": inventory})
 
         if path == "/api/alerts/test":
             configured = bool(os.getenv("WPWW_WEBHOOK_URL"))
