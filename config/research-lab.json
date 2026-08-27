@@ -1,0 +1,18 @@
+{
+  "name": "WPWW Research Lab",
+  "purpose": "Closed comparative laboratory for studying WPWW defensive behavior across databases and engineering/security tools.",
+  "defaultEnabled": false,
+  "modes": {
+    "single": "one adapter at a time",
+    "pairwise": "compare two adapters against the same WPWW scenario",
+    "matrix": "run a selected set and compare normalized results"
+  },
+  "reportFormats": ["json", "csv", "html", "pdf"],
+  "rules": {
+    "closedTargetsOnly": true,
+    "noArbitraryTargetUrls": true,
+    "secretsOutsideRepository": true,
+    "simulatedEventsClearlyMarked": true,
+    "rawResultsRetained": true
+  }
+}
