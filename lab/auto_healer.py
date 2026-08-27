@@ -1,10 +1,12 @@
 """WPWW Auto-Healer / resilience coordinator.
 
-This module monitors the unified WPWW runtime without silently claiming that a
-component was repaired. It records an observation when a configured artifact is
-missing or unreadable and keeps remediation conservative: restart orchestration
-is delegated to the container runtime rather than spawning uncontrolled child
-processes from the lab.
+This module is part of the single WPWW runtime. It observes the local runtime,
+rotates oversized event logs without deleting evidence, and records observations
+through the existing WPWW event store when that store is available.
+
+Important evidence rule: detecting a condition is not the same as proving that
+it was repaired. Results therefore distinguish OBSERVED, NOT_REQUIRED,
+FAIL and OBSERVED_AND_REPAIRED.
 """
 
 from __future__ import annotations
@@ -19,7 +21,10 @@ from typing import Any
 DATA_DIR = Path(os.getenv("WPWW_DATA_DIR", "/data"))
 STATE_FILE = DATA_DIR / "auto_healer_state.json"
 INTERVAL = max(1.0, float(os.getenv("WPWW_HEAL_INTERVAL", "20")))
-MAX_EVENT_LOG_BYTES = max(1_048_576, int(os.getenv("WPWW_MAX_EVENT_LOG_BYTES", str(20 * 1024 * 1024))))
+MAX_EVENT_LOG_BYTES = max(
+    1_048_576,
+    int(os.getenv("WPWW_MAX_EVENT_LOG_BYTES", str(20 * 1024 * 1024))),
+)
 EVENT_LOG = DATA_DIR / "wpww_events.jsonl"
 
 
@@ -32,36 +37,85 @@ class AutoHealer:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     def snapshot(self) -> dict[str, Any]:
+        """Return the current observable state without claiming health."""
+        try:
+            event_log_bytes = EVENT_LOG.stat().st_size if EVENT_LOG.exists() else 0
+        except OSError:
+            event_log_bytes = -1
         return {
             "enabled": True,
             "intervalSeconds": INTERVAL,
             "eventLogPresent": EVENT_LOG.exists(),
-            "eventLogBytes": EVENT_LOG.stat().st_size if EVENT_LOG.exists() else 0,
+            "eventLogBytes": event_log_bytes,
             "maxEventLogBytes": MAX_EVENT_LOG_BYTES,
             "containerRestartPolicy": os.getenv("WPWW_RESTART_POLICY", "unless-stopped"),
         }
 
-    def rotate_event_log(self) -> dict[str, Any]:
-        if not EVENT_LOG.exists():
-            return {"status": "NOT_APPLICABLE", "reason": "event log does not exist"}
-        size = EVENT_LOG.stat().st_size
-        if size <= MAX_EVENT_LOG_BYTES:
-            return {"status": "NOT_REQUIRED", "bytes": size}
-
-        backup = EVENT_LOG.with_suffix(".jsonl.1")
+    def _record_event(self, result: dict[str, Any]) -> None:
+        """Record through the unified Store when running inside WPWW."""
         try:
+            from wpww_unit import MODE, STORE
+
+            status = result.get("status", "UNKNOWN")
+            severity = "ERROR" if status == "FAIL" else "INFO"
+            action = str(result.get("action", status))
+            STORE.add(
+                mode=MODE["value"],
+                source="auto-healer",
+                type_="AUTO_HEAL",
+                severity=severity,
+                action=action,
+                status=500 if status == "FAIL" else 200,
+                details=result,
+            )
+        except Exception:
+            # Observability must never take down the runtime.
+            return
+
+    def rotate_event_log(self) -> dict[str, Any]:
+        """Archive an oversized log without claiming that data is deleted or fixed."""
+        try:
+            if not EVENT_LOG.exists():
+                return {"status": "NOT_REQUIRED", "reason": "event log does not exist"}
+
+            size = EVENT_LOG.stat().st_size
+            if size <= MAX_EVENT_LOG_BYTES:
+                return {"status": "NOT_REQUIRED", "bytes": size}
+
+            # Preserve evidence. Do not overwrite an existing archive.
+            stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+            backup = EVENT_LOG.with_name(f"wpww_events-{stamp}.jsonl")
+            if backup.exists():
+                suffix = 1
+                while True:
+                    candidate = EVENT_LOG.with_name(f"wpww_events-{stamp}-{suffix}.jsonl")
+                    if not candidate.exists():
+                        backup = candidate
+                        break
+                    suffix += 1
+
             EVENT_LOG.replace(backup)
-            result = {"status": "OBSERVED_AND_REPAIRED", "action": "ROTATED", "bytes": size, "backup": str(backup)}
-            STATE_FILE.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
-            return result
+            return {
+                "status": "OBSERVED_AND_REPAIRED",
+                "action": "LOG_ROTATED",
+                "bytes": size,
+                "archive": str(backup),
+            }
         except OSError as exc:
-            result = {"status": "FAIL", "action": "ROTATE", "error": str(exc)}
-            STATE_FILE.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
-            return result
+            return {"status": "FAIL", "action": "LOG_ROTATE", "error": str(exc)}
 
     def check_once(self) -> dict[str, Any]:
+        """Perform one bounded resilience pass."""
         result = self.rotate_event_log()
         result["snapshot"] = self.snapshot()
+        self._record_event(result)
+        try:
+            STATE_FILE.write_text(
+                json.dumps(result, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
         return result
 
     def _run(self) -> None:
@@ -75,7 +129,11 @@ class AutoHealer:
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()
-        self._thread = Thread(target=self._run, name="wpww-auto-healer", daemon=True)
+        self._thread = Thread(
+            target=self._run,
+            name="wpww-auto-healer",
+            daemon=True,
+        )
         self._thread.start()
 
     def stop(self) -> None:
@@ -85,7 +143,7 @@ class AutoHealer:
 
 
 def run_auto_heal() -> None:
-    """Compatibility entry point for the existing WPWW master startup."""
+    """Compatibility entry point for existing startup code."""
     healer = AutoHealer()
     healer.start()
     try:
