@@ -1,0 +1,79 @@
+red:
+  - id: evolution-lab
+    name: WPWW Evolution Lab
+    enabled: true
+    scope: wpww-local
+  - id: fuzzer-lab
+    name: Controlled Fuzzer Lab
+    enabled: false
+    scope: wpww-local
+  - id: scenario-runner
+    name: Scenario Runner
+    enabled: false
+    scope: wpww-local
+  - id: playwright
+    name: Playwright Test Adapter
+    enabled: false
+    scope: wpww-local
+  - id: pytest
+    name: pytest Adapter
+    enabled: false
+    scope: wpww-local
+  - id: zap
+    name: OWASP ZAP Adapter
+    enabled: false
+    scope: wpww-local
+  - id: semgrep
+    name: Semgrep Adapter
+    enabled: false
+    scope: wpww-local
+  - id: gitleaks
+    name: Gitleaks Adapter
+    enabled: false
+    scope: wpww-local
+  - id: trivy
+    name: Trivy Adapter
+    enabled: false
+    scope: wpww-local
+
+blue:
+  - id: security-radar
+    name: Security Radar
+    enabled: true
+    scope: wpww-local
+  - id: adaptive-shield
+    name: Adaptive Shield
+    enabled: false
+    scope: wpww-local
+  - id: defender-analyst
+    name: Defender Analyst
+    enabled: false
+    scope: wpww-local
+  - id: rate-shaper
+    name: Behavioral Rate Shaper
+    enabled: false
+    scope: wpww-local
+  - id: deception
+    name: Deception / Honeypot Adapter
+    enabled: false
+    scope: wpww-local
+  - id: prometheus
+    name: Prometheus Adapter
+    enabled: false
+    scope: wpww-local
+  - id: grafana
+    name: Grafana Adapter
+    enabled: false
+    scope: wpww-local
+  - id: otel
+    name: OpenTelemetry Adapter
+    enabled: false
+    scope: wpww-local
+  - id: loki
+    name: Loki Adapter
+    enabled: false
+    scope: wpww-local
+  - id: jaeger
+    name: Jaeger Adapter
+    enabled: false
+    scope: wpww-local
