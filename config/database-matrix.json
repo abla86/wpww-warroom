@@ -1,0 +1,20 @@
+{
+  "description": "Optional WPWW database lab adapters. None are enabled by default.",
+  "defaultEnabled": false,
+  "databases": [
+    {"id":"postgresql","family":"relational","profile":"postgresql","defaultPort":5432,"image":"postgres:18"},
+    {"id":"mysql","family":"relational","profile":"mysql","defaultPort":3306,"image":"mysql:8.4"},
+    {"id":"mariadb","family":"relational","profile":"mariadb","defaultPort":3306,"image":"mariadb:lts"},
+    {"id":"sqlserver","family":"relational","profile":"sqlserver","defaultPort":1433,"image":"mcr.microsoft.com/mssql/server"},
+    {"id":"mongodb","family":"document","profile":"mongodb","defaultPort":27017,"image":"mongo:8"},
+    {"id":"redis","family":"key-value","profile":"redis","defaultPort":6379,"image":"redis:8"},
+    {"id":"sqlite","family":"embedded","profile":"sqlite","defaultPort":null,"image":"local"}
+  ],
+  "policy": {
+    "noSecretsInRepo": true,
+    "noHostNetwork": true,
+    "optInOnly": true,
+    "healthChecksRequired": true,
+    "persistentVolumesRequired": true
+  }
+}
