@@ -5,52 +5,27 @@ services:
       - "${WPWW_PORT:-8080}:8080"
     environment:
       PORT: "8080"
-      RADAR_URL: "${RADAR_URL:-http://host.docker.internal:5080}"
-      WPWW_LAB_URL: "http://wpww-lab:8085"
       WPWW_DATA_DIR: "/data"
       WPWW_PERSONALITY: "${WPWW_PERSONALITY:-cozy}"
       WPWW_ENABLE_SIMULATOR: "${WPWW_ENABLE_SIMULATOR:-true}"
-      WPWW_ENABLE_TELEMETRY: "${WPWW_ENABLE_TELEMETRY:-false}"
+      WPWW_ENABLE_TELEMETRY: "${WPWW_ENABLE_TELEMETRY:-true}"
       WPWW_ENABLE_AUDIO: "${WPWW_ENABLE_AUDIO:-true}"
       WPWW_ENABLE_HISTORY: "${WPWW_ENABLE_HISTORY:-true}"
       WPWW_ENABLE_ALERTS: "${WPWW_ENABLE_ALERTS:-true}"
       WPWW_ENABLE_REPLAY: "${WPWW_ENABLE_REPLAY:-true}"
       WPWW_ENABLE_REPORTS: "${WPWW_ENABLE_REPORTS:-true}"
       WPWW_ENABLE_EVOLUTION: "${WPWW_ENABLE_EVOLUTION:-true}"
+      WPWW_ENABLE_DATABASE_LAB: "${WPWW_ENABLE_DATABASE_LAB:-true}"
+      WPWW_ENABLE_PLUGIN_LAB: "${WPWW_ENABLE_PLUGIN_LAB:-true}"
       WPWW_WEBHOOK_URL: "${WPWW_WEBHOOK_URL:-}"
     volumes:
       - wpww_data:/data
-    depends_on:
-      wpww-lab:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 5s
-    restart: unless-stopped
-
-  wpww-lab:
-    build:
-      context: ./lab
-    environment:
-      WPWW_LAB_PORT: "8085"
-      WPWW_DATA_DIR: "/data"
-      WPWW_PERSONALITY: "${WPWW_PERSONALITY:-cozy}"
-      WPWW_ENABLE_SIMULATOR: "${WPWW_ENABLE_SIMULATOR:-true}"
-      WPWW_ENABLE_HISTORY: "${WPWW_ENABLE_HISTORY:-true}"
-      WPWW_ENABLE_REPLAY: "${WPWW_ENABLE_REPLAY:-true}"
-      WPWW_ENABLE_REPORTS: "${WPWW_ENABLE_REPORTS:-true}"
-      WPWW_ENABLE_EVOLUTION: "${WPWW_ENABLE_EVOLUTION:-true}"
-    volumes:
-      - wpww_data:/data
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8085/healthz', timeout=2)"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 3s
     restart: unless-stopped
 
 volumes:
