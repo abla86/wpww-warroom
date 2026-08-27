@@ -19,10 +19,22 @@ services:
       WPWW_ENABLE_FILE_AUDIT: "${WPWW_ENABLE_FILE_AUDIT:-true}"
       WPWW_ENABLE_DATABASE_LAB: "${WPWW_ENABLE_DATABASE_LAB:-true}"
       WPWW_ENABLE_PLUGIN_LAB: "${WPWW_ENABLE_PLUGIN_LAB:-true}"
+      WPWW_MASTER_KEY: "${WPWW_MASTER_KEY:-}"
+      WPWW_MASTER_SESSION_TTL: "${WPWW_MASTER_SESSION_TTL:-3600}"
+      WPWW_RESTART_POLICY: "unless-stopped"
+      WPWW_HEAL_INTERVAL: "${WPWW_HEAL_INTERVAL:-20}"
+      WPWW_MAX_EVENT_LOG_BYTES: "${WPWW_MAX_EVENT_LOG_BYTES:-20971520}"
       WPWW_WEBHOOK_URL: "${WPWW_WEBHOOK_URL:-}"
     volumes:
       - wpww_data:/data
       - ./lab/user_files:/app/user_files
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)"]
       interval: 10s
