@@ -129,3 +129,7 @@ Secrets are never committed to the repository. Webhook URLs and signature secret
 ## Safety boundary
 
 WPWW is designed as a local controlled laboratory. Red-side modules are scenario-driven and bounded to WPWW-owned endpoints. Blue-side modules observe, detect, rate-limit, quarantine or report within the same controlled lab. No component is intended to scan, attack or interfere with arbitrary external systems.
+
+## Change-control audit
+
+The repository uses an auditable change-control record. Material changes must be traceable to an approved scope, the resulting Git diff, and verification evidence.
