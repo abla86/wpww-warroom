@@ -266,6 +266,7 @@ def local_scenario(scenario: dict) -> dict:
         details={"scenario": scenario["name"], "payload": scenario["payload"]},
     )
     result = asdict(event)
+    result["incidentId"] = event.id
     result["target"] = "Security Radar controlled route"
     return result
 
