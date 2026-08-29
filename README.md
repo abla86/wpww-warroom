@@ -2,6 +2,10 @@
 
 Standalone live operations and research lab for controlled security, resilience, observability and verification experiments.
 
+## Portfolio status
+
+**Under review — not currently promoted as a flagship portfolio project.** The repository is a private, controlled engineering laboratory. Its portfolio position will be reconsidered after the implementation and verification evidence are strong enough to support public flagship presentation.
+
 ## Core
 
 WPWW provides one local control plane for:
