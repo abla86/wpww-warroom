@@ -380,6 +380,13 @@ class Handler(BaseHTTPRequestHandler):
             raw = csv_report(make_report()).encode(); self.send_response(200); self.send_header("Content-Type", "text/csv; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
         if path == "/api/report.html":
             raw = html_report(make_report()).encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
+        if path.startswith("/api/replay/"):
+            incident_id = path.removeprefix("/api/replay/").strip()
+            replay = [event for event in STORE.recent(MAX_EVENTS) if event.get("id") == incident_id]
+            if not replay:
+                return self._json(404, {"error": "Incident not found", "status": "NOT_FOUND", "code": 404})
+            return self._json(200, {"incidentId": incident_id, "replay": replay})
+
         if path == "/help":
             raw = ("WPWW Unified War Room\n\nLIVE/DEMO: POST /api/mode\nScenario: POST /api/scenario\nEvolution: POST /api/evolution\nModules: GET /api/modules, POST /api/modules/<id>\nTelemetry: GET /api/telemetry\nCapabilities: GET /api/capabilities\nBattleLab: GET /api/battle\nTools: GET /api/tools\nDatabases: GET /api/databases\nFiles: GET /api/files, POST /api/files/baseline\nReports: /api/report.json /api/report.csv /api/report.html\nIncidents: /api/incidents\nLockdown: POST /api/lockdown\nReset: POST /api/reset\n").encode(); self.send_response(200); self.send_header("Content-Type", "text/plain; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
         return self._json(404, {"error": "Route not found", "status": "NOT_FOUND", "code": 404})
