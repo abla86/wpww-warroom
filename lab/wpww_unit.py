@@ -374,14 +374,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/tools": return self._json(200, _capabilities().get("tools", []))
         if path == "/api/databases": return self._json(200, _capabilities().get("databases", {}))
         if path == "/api/battle": return self._json(200, battle_snapshot())
-        if path == "/api/report.json": return self._json(200, make_report())
+        if path in {"/api/report", "/api/report.json"}: return self._json(200, make_report())
         if path == "/api/report.csv":
             raw = csv_report(make_report()).encode(); self.send_response(200); self.send_header("Content-Type", "text/csv; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
         if path == "/api/report.html":
             raw = html_report(make_report()).encode(); self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
         if path == "/help":
             raw = ("WPWW Unified War Room\n\nLIVE/DEMO: POST /api/mode\nScenario: POST /api/scenario\nEvolution: POST /api/evolution\nModules: GET /api/modules, POST /api/modules/<id>\nTelemetry: GET /api/telemetry\nCapabilities: GET /api/capabilities\nBattleLab: GET /api/battle\nTools: GET /api/tools\nDatabases: GET /api/databases\nFiles: GET /api/files, POST /api/files/baseline\nReports: /api/report.json /api/report.csv /api/report.html\nIncidents: /api/incidents\nLockdown: POST /api/lockdown\nReset: POST /api/reset\n").encode(); self.send_response(200); self.send_header("Content-Type", "text/plain; charset=utf-8"); self.end_headers(); self.wfile.write(raw); return
-        return self._json(404, {"error": "Route not found", "status": "NOT_FOUND"})
+        return self._json(404, {"error": "Route not found", "status": "NOT_FOUND", "code": 404})
 
     def do_POST(self) -> None:
         path = self.path.split("?", 1)[0]
@@ -394,9 +394,13 @@ class Handler(BaseHTTPRequestHandler):
             if mode not in {"LIVE", "DEMO"}: return self._json(400, {"error": "mode must be LIVE or DEMO", "status": "BAD_REQUEST"})
             MODE["value"] = mode; STORE.add(mode=mode, source="control-panel", type_="MODE_CHANGE", severity="INFO", action="MODE_UPDATED", status=200, details={"mode": mode}); return self._json(200, {"mode": mode, "status": "UPDATED"})
         if path == "/api/lockdown":
-            LOCKDOWN["value"] = True; STORE.add(mode=MODE["value"], source="control-panel", type_="LOCKDOWN", severity="WARNING", action="LOCKDOWN_ENABLED", status=200, details={}); return self._json(200, {"lockdown": True, "status": "UPDATED"})
+            LOCKDOWN["value"] = True
+            STORE.add(mode=MODE["value"], source="control-panel", type_="LOCKDOWN", severity="WARNING", action="LOCKDOWN_ENABLED", status=200, details={})
+            return self._json(200, {"lockdown": True, "status": "UPDATED", "externalSystemsAffected": False})
         if path == "/api/lockdown/reset":
-            LOCKDOWN["value"] = False; STORE.add(mode=MODE["value"], source="control-panel", type_="LOCKDOWN", severity="INFO", action="LOCKDOWN_DISABLED", status=200, details={}); return self._json(200, {"lockdown": False, "status": "UPDATED"})
+            LOCKDOWN["value"] = False
+            STORE.add(mode=MODE["value"], source="control-panel", type_="LOCKDOWN", severity="INFO", action="LOCKDOWN_DISABLED", status=200, details={})
+            return self._json(200, {"lockdown": False, "status": "UPDATED", "externalSystemsAffected": False})
         if path == "/api/reset": STORE.clear(); return self._json(200, {"status": "RESET"})
         if path in {"/api/simulate", "/api/scenario"}:
             scenario_id = "deception" if path == "/api/simulate" else str(payload.get("scenario", "deception")).strip()
@@ -413,10 +417,19 @@ class Handler(BaseHTTPRequestHandler):
             try: result = _module_update(module_id, payload)
             except Exception as exc: return self._json(500, {"error": "Module update failed", "detail": str(exc), "status": "ERROR"})
             STORE.add(mode=MODE["value"], source="module-control", type_="MODULE_CHANGE", severity="INFO", action="MODULE_UPDATED", status=200, details={"module": module_id, "changes": payload}); return self._json(200, result)
+        if path.startswith("/api/replay/"):
+            incident_id = path.removeprefix("/api/replay/").strip()
+            replay = [event for event in STORE.recent(MAX_EVENTS) if event.get("id") == incident_id]
+            if not replay:
+                return self._json(404, {"error": "Incident not found", "status": "NOT_FOUND", "code": 404})
+            return self._json(200, {"incidentId": incident_id, "replay": replay})
+
         if path == "/api/files/baseline":
             baseline_path = DATA_DIR / "user_files_baseline.json"; baseline_path.parent.mkdir(parents=True, exist_ok=True); inventory = file_inventory(); baseline_path.write_text(json.dumps(inventory, indent=2, ensure_ascii=False), encoding="utf-8"); STORE.add(mode=MODE["value"], source="file-audit", type_="FILE_BASELINE", severity="INFO", action="BASELINE_UPDATED", status=200, details={"path": str(baseline_path), "fileCount": len(inventory)}); return self._json(200, {"status": "BASELINE_UPDATED", "files": inventory})
         if path == "/api/alerts/test":
-            configured = bool(os.getenv("WPWW_WEBHOOK_URL")); STORE.add(mode=MODE["value"], source="alerting", type_="ALERT_TEST", severity="INFO", action="ALERT_TESTED", status=200, details={"configured": configured}); return self._json(200, {"status": "TESTED", "configured": configured})
+            configured = bool(os.getenv("WPWW_WEBHOOK_URL"))
+            event = STORE.add(mode=MODE["value"], source="alerting", type_="ALERT_TEST", severity="INFO", action="ALERT_TESTED", status=200, details={"configured": configured})
+            return self._json(200, {"status": "TESTED", "configured": configured, "alert": asdict(event)})
         return self._json(404, {"error": "Route not found", "status": "NOT_FOUND"})
 
 
