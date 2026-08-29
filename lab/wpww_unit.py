@@ -265,7 +265,9 @@ def local_scenario(scenario: dict) -> dict:
         action=action, status=status,
         details={"scenario": scenario["name"], "payload": scenario["payload"]},
     )
-    return asdict(event)
+    result = asdict(event)
+    result["target"] = "Security Radar controlled route"
+    return result
 
 
 def battle_snapshot() -> dict:
