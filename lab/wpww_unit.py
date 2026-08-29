@@ -368,6 +368,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/capabilities": return self._json(200, _capabilities())
         if path == "/api/incidents": return self._json(200, {"mode": MODE["value"], "incidents": STORE.recent(100)})
         if path == "/api/files": return self._json(200, file_audit())
+        if path == "/api/device-watch": return self._json(200, _device_snapshot())
         if path == "/api/tools": return self._json(200, _capabilities().get("tools", []))
         if path == "/api/databases": return self._json(200, _capabilities().get("databases", {}))
         if path == "/api/battle": return self._json(200, battle_snapshot())
