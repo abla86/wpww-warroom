@@ -57,12 +57,12 @@ def main() -> int:
 
     status, body = call("/api/simulate", "POST")
     probe_id = body.get("incidentId") if isinstance(body, dict) else None
-    checks.append(("controlled-probe", status == 200 and isinstance(body, dict) and body.get("action") == "defensive-probe"))
+    checks.append(("controlled-probe", status == 200 and isinstance(body, dict) and body.get("statusCode") == 403 and body.get("action") == "BLOCK_403"))
 
     status, body = call("/api/incidents")
     checks.append(("incident-feed", status == 200 and isinstance(body, dict) and isinstance(body.get("incidents"), list)))
 
-    status, body = call("/api/report")
+    status, body = call("/api/report.json")
     checks.append(("report-contract", status == 200 and isinstance(body, dict) and isinstance(body.get("summary"), dict)))
 
     if probe_id:
