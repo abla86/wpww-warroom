@@ -1,0 +1,6 @@
+{
+  "name": "VelferdsVakt - Drift, Beredskap & Pårørende",
+  "description": "Helhetlig løsning for velferdsteknologi: DriftVakt (flåtestyring og prediktiv drift), Beredskap & Rutine (operativ støtte for hjemmetjenesten) og TryggPårørende (trygghet for pårørende uten overvåking).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
