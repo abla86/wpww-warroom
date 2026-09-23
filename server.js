@@ -3,7 +3,8 @@ const port = Number(process.env.PORT || 8080);
 const labUrl = process.env.WPWW_LAB_URL || "http://wpww-lab:8085";
 
 const server = http.createServer(async (req, res) => {
-  const target = new URL(req.url || "/", labUrl);
+  const requestUrl = new URL(req.url || "/", "http://gateway.local");
+  const target = new URL(`${requestUrl.pathname}${requestUrl.search}`, labUrl);
   try {
     const body = ["POST", "PUT", "PATCH"].includes(req.method || "")
       ? await new Promise((resolve, reject) => {
