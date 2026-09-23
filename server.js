@@ -1,10 +1,22 @@
 const http = require("node:http");
+const path = require("node:path");
 const port = Number(process.env.PORT || 8080);
 const labUrl = process.env.WPWW_LAB_URL || "http://wpww-lab:8085";
 
 const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url || "/", "http://gateway.local");
-  const target = new URL(`${requestUrl.pathname}${requestUrl.search}`, labUrl);
+  const normalizedPath = path.posix.normalize(requestUrl.pathname);
+  const hasTraversal = normalizedPath.split("/").includes("..");
+  if (!normalizedPath.startsWith("/") || hasTraversal) {
+    res.statusCode = 400;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(JSON.stringify({ error: "Invalid request path" }));
+    return;
+  }
+
+  const target = new URL(labUrl);
+  target.pathname = normalizedPath;
+  target.search = requestUrl.search;
   try {
     const body = ["POST", "PUT", "PATCH"].includes(req.method || "")
       ? await new Promise((resolve, reject) => {
