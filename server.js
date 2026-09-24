@@ -1,6 +1,7 @@
 const http = require("node:http");
 const port = Number(process.env.PORT || 8080);
 const labUrl = process.env.WPWW_LAB_URL || "http://wpww-lab:8085";
+const maxBodyBytes = 1024 * 1024;
 
 const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url || "/", "http://gateway.local");
@@ -9,7 +10,16 @@ const server = http.createServer(async (req, res) => {
     const body = ["POST", "PUT", "PATCH"].includes(req.method || "")
       ? await new Promise((resolve, reject) => {
           const chunks = [];
-          req.on("data", (chunk) => chunks.push(chunk));
+          let total = 0;
+          req.on("data", (chunk) => {
+            total += chunk.length;
+            if (total > maxBodyBytes) {
+              reject(new Error("Request body too large."));
+              req.destroy();
+              return;
+            }
+            chunks.push(chunk);
+          });
           req.on("end", () => resolve(Buffer.concat(chunks)));
           req.on("error", reject);
         })
