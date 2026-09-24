@@ -2,8 +2,13 @@ const http = require("node:http");
 const port = Number(process.env.PORT || 8080);
 const labUrl = process.env.WPWW_LAB_URL || "http://wpww-lab:8085";
 const maxBodyBytes = 1024 * 1024;
+const labHost = new URL(labUrl).hostname;
 
 const server = http.createServer(async (req, res) => {
+  if (req.headers.host && req.headers.host.length > 255) {
+    res.statusCode = 400;
+    return res.end("Invalid Host header");
+  }
   const requestUrl = new URL(req.url || "/", "http://gateway.local");
   const target = new URL(`${requestUrl.pathname}${requestUrl.search}`, labUrl);
   try {
