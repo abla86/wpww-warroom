@@ -1,8 +1,10 @@
 services:
   wpww-warroom:
     build: .
+    # Keep the lab host-local by default. Set WPWW_BIND_ADDRESS explicitly only
+    # when a trusted reverse proxy/network boundary is configured.
     ports:
-      - "${WPWW_PORT:-8080}:8080"
+      - "${WPWW_BIND_ADDRESS:-127.0.0.1}:${WPWW_PORT:-8080}:8080"
     environment:
       WPWW_LAB_PORT: "8080"
       WPWW_DATA_DIR: "/data"
