@@ -16,9 +16,12 @@ concurrency:
 
 jobs:
   validate:
+    timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
@@ -42,6 +45,8 @@ jobs:
     needs: validate
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Build and start WPWW
         run: docker compose up --build -d
       - name: Wait for HTTP endpoint
