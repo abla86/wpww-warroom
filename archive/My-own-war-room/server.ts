@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -310,8 +311,12 @@ Gratulerer! Dette er den fullstendige, produksjonsklare kildekoden til **WPWW Cy
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    const staticFileLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      max: 120
+    });
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', staticFileLimiter, (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
