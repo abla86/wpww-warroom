@@ -137,3 +137,12 @@ WPWW is designed as a local controlled laboratory. Red-side modules are scenario
 ## Change-control audit
 
 The repository uses an auditable change-control record. Material changes must be traceable to an approved scope, the resulting Git diff, and verification evidence.
+
+
+## Disclaimers and limitations
+
+- **Project status:** Features may be incomplete, experimental, or unverified. Confirm behavior against the current code, tests, and configuration before relying on it.
+- **No warranty:** Provided as-is, without guarantees of correctness, availability, security, or production readiness. Review and test changes before production use.
+- **Security and data:** Never commit credentials, API keys, personal information, or confidential data. Review permissions, external services, logging, retention, and dependency risks. Automated checks are not a complete security audit.
+- **Testing and deployment:** Passing tests or static checks does not prove all behavior is correct or deployment is safe. Verify functionality, access controls, dependencies, backups, monitoring, and operational requirements independently.
+- **Domain-specific limitation:** Security and resilience experiments must remain within systems you own or are explicitly authorized to test. Use isolated environments; a registered adapter or simulated result does not prove that an external tool ran or that a system is secure.
